@@ -188,11 +188,6 @@ object HoodieSparkSqlWriter {
             } else {
               hoodieAllIncomingRecords
             }
-
-          if (hoodieRecords.isEmpty()) {
-            log.info("new batch has no new records, skipping...")
-            (true, common.util.Option.empty())
-          }
           client.startCommitWithTime(instantTime, commitActionType)
           val writeResult = DataSourceUtils.doWriteOperation(client, hoodieRecords, instantTime, operation)
           (writeResult, client)

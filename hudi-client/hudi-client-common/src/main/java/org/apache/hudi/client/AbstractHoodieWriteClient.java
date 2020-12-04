@@ -172,6 +172,11 @@ public abstract class AbstractHoodieWriteClient<T extends HoodieRecordPayload, I
 
   public boolean commitStats(String instantTime, List<HoodieWriteStat> stats, Option<Map<String, String>> extraMetadata,
                              String commitActionType, Map<String, List<String>> partitionToReplaceFileIds) {
+    // Skip the empty commit if not allowed
+    if (!config.allowEmptyCommit() && stats.isEmpty()) {
+      return true;
+    }
+    LOG.info("Committing " + instantTime + " action " + commitActionType);
     // Create a Hoodie table which encapsulated the commits and files visible
     HoodieTable table = createTable(config, hadoopConf);
     HoodieCommitMetadata metadata = CommitUtils.buildMetadata(stats, partitionToReplaceFileIds,

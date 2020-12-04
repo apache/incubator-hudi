@@ -366,6 +366,11 @@ public class HoodieWriteConfig extends HoodieConfig {
       .withDocumentation("When enabled, records in older schema are rewritten into newer schema during upsert,delete and background"
           + " compaction,clustering operations.");
 
+  public static final ConfigProperty<Boolean> ALLOW_EMPTY_COMMIT = ConfigProperty
+       .key("hoodie.allow.empty.commmit")
+       .defaultValue(true)
+       .withDocumentation("Whether to allow generate empty commit when the input is empty.");
+
   private ConsistencyGuardConfig consistencyGuardConfig;
 
   // Hoodie Write Client transparently rewrites File System View config when embedded mode is enabled
@@ -1269,6 +1274,10 @@ public class HoodieWriteConfig extends HoodieConfig {
 
   public String getWriteMetaKeyPrefixes() {
     return getString(WRITE_META_KEY_PREFIXES_PROP);
+  }
+
+  public boolean allowEmptyCommit() {
+    return getBooleanOrDefault(ALLOW_EMPTY_COMMIT);
   }
 
   public static class Builder {
