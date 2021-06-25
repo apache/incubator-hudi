@@ -30,7 +30,7 @@ import org.apache.spark.sql.catalyst.TableIdentifier
 import org.apache.spark.sql.catalyst.analysis.UnresolvedRelation
 import org.apache.spark.sql.catalyst.catalog.{CatalogTable, CatalogTableType}
 import org.apache.spark.sql.catalyst.expressions.{And, Attribute, Cast, Expression, Literal}
-import org.apache.spark.sql.catalyst.plans.logical.{LogicalPlan, SubqueryAlias}
+import org.apache.spark.sql.catalyst.plans.logical.{LogicalPlan, MergeIntoTable, SubqueryAlias}
 import org.apache.spark.sql.execution.datasources.LogicalRelation
 import org.apache.spark.sql.internal.{SQLConf, StaticSQLConf}
 import org.apache.spark.sql.types.{DataType, NullType, StringType, StructField, StructType}
@@ -153,6 +153,18 @@ object HoodieSqlUtils extends SparkAdapterSupport {
       case _ => if (child.dataType != dataType)
         Cast(child, dataType, Option(conf.sessionLocalTimeZone)) else child
     }
+  }
+
+  /**
+   * Get the TableIdentifier of the target table in MergeInto.
+   */
+  def getMergeIntoTargetTableId(mergeInto: MergeIntoTable): TableIdentifier = {
+    val aliaId = mergeInto.targetTable match {
+      case SubqueryAlias(_, SubqueryAlias(tableId, _)) => tableId
+      case SubqueryAlias(tableId, _) => tableId
+      case plan => throw new IllegalArgumentException(s"Illegal plan $plan in target")
+    }
+    sparkAdapter.toTableIdentify(aliaId)
   }
 
   /**
