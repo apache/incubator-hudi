@@ -117,11 +117,12 @@ public class TestAWSDmsAvroPayload {
     oldRecord.put("field1", 4);
     oldRecord.put("Op", "I");
 
-    AWSDmsAvroPayload payload = new AWSDmsAvroPayload(Option.of(deleteRecord));
+    AWSDmsAvroPayload deletePayload = new AWSDmsAvroPayload(Option.of(deleteRecord));
     AWSDmsAvroPayload insertPayload = new AWSDmsAvroPayload(Option.of(oldRecord));
 
     try {
-      OverwriteWithLatestAvroPayload output = payload.preCombine(insertPayload);
+      // delete payload was received behind
+      OverwriteWithLatestAvroPayload output = insertPayload.preCombine(deletePayload);
       Option<IndexedRecord> outputPayload = output.getInsertValue(avroSchema);
       // expect nothing to be comitted to table
       assertFalse(outputPayload.isPresent());

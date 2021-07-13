@@ -101,10 +101,8 @@ public class DefaultHoodieRecordPayload extends OverwriteWithLatestAvroPayload {
      * NOTE: Deletes sent via EmptyHoodieRecordPayload and/or Delete operation type do not hit this code path
      * and need to be dealt with separately.
      */
-    Object persistedOrderingVal = getNestedFieldVal((GenericRecord) currentValue,
-        properties.getProperty(HoodiePayloadProps.PAYLOAD_ORDERING_FIELD_PROP_KEY), true);
-    Comparable incomingOrderingVal = (Comparable) getNestedFieldVal((GenericRecord) incomingRecord,
-        properties.getProperty(HoodiePayloadProps.PAYLOAD_ORDERING_FIELD_PROP_KEY), false);
+    Object persistedOrderingVal = getOrderingVal((GenericRecord) currentValue, properties);
+    Comparable incomingOrderingVal = (Comparable) getOrderingVal((GenericRecord) incomingRecord, properties);
     return persistedOrderingVal == null || ((Comparable) persistedOrderingVal).compareTo(incomingOrderingVal) <= 0;
   }
 }

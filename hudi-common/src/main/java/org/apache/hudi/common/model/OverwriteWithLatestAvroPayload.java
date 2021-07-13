@@ -26,6 +26,9 @@ import org.apache.avro.generic.GenericRecord;
 import org.apache.avro.generic.IndexedRecord;
 
 import java.io.IOException;
+import java.util.Properties;
+
+import static org.apache.hudi.avro.HoodieAvroUtils.getNestedFieldVal;
 
 /**
  * Default payload used for delta streamer.
@@ -49,7 +52,7 @@ public class OverwriteWithLatestAvroPayload extends BaseAvroPayload
   @Override
   public OverwriteWithLatestAvroPayload preCombine(OverwriteWithLatestAvroPayload another) {
     // pick the payload with greatest ordering value
-    if (another.orderingVal.compareTo(orderingVal) > 0) {
+    if (another.orderingVal.compareTo(orderingVal) >= 0) {
       return another;
     } else {
       return this;
@@ -88,6 +91,14 @@ public class OverwriteWithLatestAvroPayload extends BaseAvroPayload
     }
     Object deleteMarker = genericRecord.get(isDeleteKey);
     return (deleteMarker instanceof Boolean && (boolean) deleteMarker);
+  }
+
+  /**
+   * Returns the ordering value of given record {@code record}.
+   */
+  protected static Object getOrderingVal(GenericRecord record, Properties properties) {
+    return getNestedFieldVal(record,
+        properties.getProperty(HoodiePayloadProps.PAYLOAD_ORDERING_FIELD_PROP_KEY), true);
   }
 
   /**
