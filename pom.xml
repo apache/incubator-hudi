@@ -91,7 +91,7 @@
     <kafka.version>2.0.0</kafka.version>
     <confluent.version>5.3.4</confluent.version>
     <glassfish.version>2.17</glassfish.version>
-    <parquet.version>1.10.1</parquet.version>
+    <parquet.version>1.11.1</parquet.version>
     <junit.jupiter.version>5.7.0-M1</junit.jupiter.version>
     <junit.vintage.version>5.7.0-M1</junit.vintage.version>
     <junit.platform.version>1.7.0-M1</junit.platform.version>
@@ -521,6 +521,13 @@
       <dependency>
         <groupId>org.apache.parquet</groupId>
         <artifactId>parquet-avro</artifactId>
+        <version>${parquet.version}</version>
+        <scope>provided</scope>
+      </dependency>
+
+      <dependency>
+        <groupId>org.apache.parquet</groupId>
+        <artifactId>parquet-column</artifactId>
         <version>${parquet.version}</version>
         <scope>provided</scope>
       </dependency>
