@@ -1116,6 +1116,16 @@ public class TestHoodieClientOnCopyOnWriteStorage extends HoodieClientTestBase {
         .withClusteringTargetPartitions(0).withInlineClusteringNumCommits(1).build();
     testClustering(clusteringConfig);
   }
+  
+  @Test
+  public void testClusteringWithOneFilePerGroup() throws Exception {
+    HoodieClusteringConfig clusteringConfig = HoodieClusteringConfig.newBuilder().withClusteringMaxNumGroups(10)
+        .withClusteringMaxBytesInGroup(10) // set small number so each file is considered as separate clustering group
+        .withClusteringExecutionStrategyClass("org.apache.hudi.ClusteringIdentityTestExecutionStrategy")
+        .withClusteringTargetPartitions(0).withInlineClusteringNumCommits(1).build();
+    
+    testClustering(clusteringConfig, true);
+  }
 
   @Test
   public void testPendingClusteringRollback() throws Exception {
@@ -1147,7 +1157,7 @@ public class TestHoodieClientOnCopyOnWriteStorage extends HoodieClientTestBase {
   }
 
   private List<HoodieRecord> testClustering(HoodieClusteringConfig clusteringConfig) throws Exception {
-    return testClustering(clusteringConfig, false);
+    return testClustering(clusteringConfig, true);
   }
   
   private List<HoodieRecord> testClustering(HoodieClusteringConfig clusteringConfig, boolean completeClustering) throws Exception {
@@ -1169,7 +1179,7 @@ public class TestHoodieClientOnCopyOnWriteStorage extends HoodieClientTestBase {
     fileIdIntersection.retainAll(fileIds2);
     assertEquals(0, fileIdIntersection.size());
 
-    config = getConfigBuilder(HoodieFailedWritesCleaningPolicy.LAZY).withAutoCommit(completeClustering)
+    config = getConfigBuilder(HoodieFailedWritesCleaningPolicy.LAZY).withAutoCommit(false)
         .withClusteringConfig(clusteringConfig).build();
 
     // create client with new config.

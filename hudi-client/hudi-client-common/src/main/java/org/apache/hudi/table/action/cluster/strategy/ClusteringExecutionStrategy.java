@@ -20,6 +20,7 @@ package org.apache.hudi.table.action.cluster.strategy;
 
 import org.apache.avro.Schema;
 import org.apache.hudi.common.engine.HoodieEngineContext;
+import org.apache.hudi.common.model.HoodieFileGroupId;
 import org.apache.hudi.common.model.HoodieRecordPayload;
 import org.apache.hudi.config.HoodieWriteConfig;
 import org.apache.hudi.table.HoodieTable;
@@ -27,6 +28,7 @@ import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
 
 import java.io.Serializable;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -51,7 +53,7 @@ public abstract class ClusteringExecutionStrategy<T extends HoodieRecordPayload,
    * Note that commit is not done as part of strategy. commit is callers responsibility.
    */
   public abstract O performClustering(final I inputRecords, final int numOutputGroups, final String instantTime,
-                                      final Map<String, String> strategyParams, final Schema schema);
+                                      final Map<String, String> strategyParams, final Schema schema, final List<HoodieFileGroupId> inputFileIds);
 
   protected HoodieTable<T,I,K, O> getHoodieTable() {
     return this.hoodieTable;

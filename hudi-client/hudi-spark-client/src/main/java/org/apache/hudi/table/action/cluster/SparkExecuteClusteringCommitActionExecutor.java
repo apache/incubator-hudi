@@ -32,6 +32,7 @@ import org.apache.hudi.client.utils.ConcatenatingIterator;
 import org.apache.hudi.common.engine.HoodieEngineContext;
 import org.apache.hudi.common.model.ClusteringOperation;
 import org.apache.hudi.common.model.HoodieCommitMetadata;
+import org.apache.hudi.common.model.HoodieFileGroupId;
 import org.apache.hudi.common.model.HoodieKey;
 import org.apache.hudi.common.model.HoodieRecord;
 import org.apache.hudi.common.model.HoodieRecordPayload;
@@ -61,9 +62,11 @@ import org.apache.spark.api.java.JavaSparkContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -98,7 +101,7 @@ public class SparkExecuteClusteringCommitActionExecutor<T extends HoodieRecordPa
     JavaRDD<WriteStatus>[] writeStatuses = convertStreamToArray(writeStatusRDDStream);
     JavaRDD<WriteStatus> writeStatusRDD = engineContext.union(writeStatuses);
     
-    HoodieWriteMetadata<JavaRDD<WriteStatus>> writeMetadata = buildWriteMetadata(writeStatusRDD);
+    HoodieWriteMetadata<JavaRDD<WriteStatus>> writeMetadata = new HoodieWriteMetadata<>();
     JavaRDD<WriteStatus> statuses = updateIndex(writeStatusRDD, writeMetadata);
     writeMetadata.setWriteStats(statuses.map(WriteStatus::getStat).collect());
     // validate clustering action before committing result
@@ -148,9 +151,12 @@ public class SparkExecuteClusteringCommitActionExecutor<T extends HoodieRecordPa
       JavaSparkContext jsc = HoodieSparkEngineContext.getSparkContext(context);
       JavaRDD<HoodieRecord<? extends HoodieRecordPayload>> inputRecords = readRecordsForGroup(jsc, clusteringGroup);
       Schema readerSchema = HoodieAvroUtils.addMetadataFields(new Schema.Parser().parse(config.getSchema()));
+      List<HoodieFileGroupId> inputFileIds = clusteringGroup.getSlices().stream()
+          .map(info -> new HoodieFileGroupId(info.getPartitionPath(), info.getFileId()))
+          .collect(Collectors.toList());
       return ((ClusteringExecutionStrategy<T, JavaRDD<HoodieRecord<? extends HoodieRecordPayload>>, JavaRDD<HoodieKey>, JavaRDD<WriteStatus>>)
           ReflectionUtils.loadClass(config.getClusteringExecutionStrategyClass(), table, context, config))
-          .performClustering(inputRecords, clusteringGroup.getNumOutputFileGroups(), instantTime, strategyParams, readerSchema);
+          .performClustering(inputRecords, clusteringGroup.getNumOutputFileGroups(), instantTime, strategyParams, readerSchema, inputFileIds);
     });
 
     return writeStatusesFuture;
@@ -163,8 +169,10 @@ public class SparkExecuteClusteringCommitActionExecutor<T extends HoodieRecordPa
 
   @Override
   protected Map<String, List<String>> getPartitionToReplacedFileIds(JavaRDD<WriteStatus> writeStatuses) {
-    return ClusteringUtils.getFileGroupsFromClusteringPlan(clusteringPlan).collect(
-        Collectors.groupingBy(fg -> fg.getPartitionPath(), Collectors.mapping(fg -> fg.getFileId(), Collectors.toList())));
+    Set<HoodieFileGroupId> newFilesWritten = new HashSet(writeStatuses.map(s -> s.getFileId()).collect());
+    return ClusteringUtils.getFileGroupsFromClusteringPlan(clusteringPlan)
+        .filter(fg -> !newFilesWritten.contains(fg))
+        .collect(Collectors.groupingBy(fg -> fg.getPartitionPath(), Collectors.mapping(fg -> fg.getFileId(), Collectors.toList())));
   }
 
   /**
@@ -257,12 +265,4 @@ public class SparkExecuteClusteringCommitActionExecutor<T extends HoodieRecordPa
     return hoodieRecord;
   }
 
-  private HoodieWriteMetadata<JavaRDD<WriteStatus>> buildWriteMetadata(JavaRDD<WriteStatus> writeStatusJavaRDD) {
-    HoodieWriteMetadata<JavaRDD<WriteStatus>> result = new HoodieWriteMetadata<>();
-    result.setPartitionToReplaceFileIds(getPartitionToReplacedFileIds(writeStatusJavaRDD));
-    result.setWriteStatuses(writeStatusJavaRDD);
-    result.setCommitMetadata(Option.empty());
-    result.setCommitted(false);
-    return result;
-  }
 }

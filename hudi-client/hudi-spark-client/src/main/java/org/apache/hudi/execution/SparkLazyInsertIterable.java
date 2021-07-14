@@ -57,8 +57,20 @@ public class SparkLazyInsertIterable<T extends HoodieRecordPayload> extends Hood
                                  String idPrefix,
                                  TaskContextSupplier taskContextSupplier,
                                  WriteHandleFactory writeHandleFactory) {
+    this(recordItr, areRecordsSorted, config, instantTime, hoodieTable, idPrefix, taskContextSupplier, writeHandleFactory, false);
+  }
+
+  public SparkLazyInsertIterable(Iterator<HoodieRecord<T>> recordItr,
+                                 boolean areRecordsSorted,
+                                 HoodieWriteConfig config,
+                                 String instantTime,
+                                 HoodieTable hoodieTable,
+                                 String idPrefix,
+                                 TaskContextSupplier taskContextSupplier,
+                                 WriteHandleFactory writeHandleFactory,
+                                 boolean useWriterSchema) {
     super(recordItr, areRecordsSorted, config, instantTime, hoodieTable, idPrefix, taskContextSupplier, writeHandleFactory);
-    this.useWriterSchema = false;
+    this.useWriterSchema = useWriterSchema;
   }
 
   @Override
