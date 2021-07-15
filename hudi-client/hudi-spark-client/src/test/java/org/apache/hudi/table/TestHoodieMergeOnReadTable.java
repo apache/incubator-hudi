@@ -77,9 +77,12 @@ import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.mapred.FileInputFormat;
 import org.apache.hadoop.mapred.JobConf;
+import org.apache.log4j.LogManager;
+import org.apache.log4j.Logger;
 import org.apache.spark.api.java.JavaRDD;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.RepeatedTest;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -104,6 +107,9 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class TestHoodieMergeOnReadTable extends HoodieClientTestHarness {
+
+  private static final Logger LOG = LogManager.getLogger(TestHoodieMergeOnReadTable.class);
+
   private JobConf roSnapshotJobConf;
   private JobConf roJobConf;
   private JobConf rtJobConf;
@@ -577,7 +583,7 @@ public class TestHoodieMergeOnReadTable extends HoodieClientTestHarness {
 
   private void testRollbackWithDeltaAndCompactionCommit(Boolean rollbackUsingMarkers) throws Exception {
     HoodieWriteConfig cfg = getConfig(false, rollbackUsingMarkers);
-
+    LOG.warn("\n\nStarting a test case ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::");
     try (SparkRDDWriteClient client = getHoodieWriteClient(cfg);) {
 
       // Test delta commit rollback
@@ -600,6 +606,7 @@ public class TestHoodieMergeOnReadTable extends HoodieClientTestHarness {
 
       Option<HoodieInstant> deltaCommit = metaClient.getActiveTimeline().getDeltaCommitTimeline().firstInstant();
       assertTrue(deltaCommit.isPresent());
+      LOG.warn("Deltacommit 1 complete and avaialble " + deltaCommit.get().toString());
       assertEquals("001", deltaCommit.get().getTimestamp(), "Delta commit should be 001");
 
       Option<HoodieInstant> commit = metaClient.getActiveTimeline().getCommitTimeline().firstInstant();
@@ -615,6 +622,11 @@ public class TestHoodieMergeOnReadTable extends HoodieClientTestHarness {
       dataFilesToRead = tableView.getLatestBaseFiles();
       assertTrue(dataFilesToRead.findAny().isPresent(),
           "should list the base files we wrote in the delta commit");
+      List<HoodieBaseFile> baseFiles = tableView.getLatestBaseFiles().collect(Collectors.toList());
+      for (HoodieBaseFile baseFile: baseFiles) {
+        LOG.warn("Base files in first detla commit. commit time " + baseFile.getCommitTime() + ", fileid  "
+            + baseFile.getFileId() + ", filename " + baseFile.getFileName());
+      }
 
       /**
        * Write 2 (inserts + updates - testing failed delta commit)
@@ -637,9 +649,40 @@ public class TestHoodieMergeOnReadTable extends HoodieClientTestHarness {
         // Verify there are no errors
         assertNoWriteErrors(statuses);
 
+        // added extra
+        metaClient = getHoodieMetaClient(hadoopConf, cfg.getBasePath());
+        hoodieTable = HoodieSparkTable.create(cfg, context, metaClient);
+
+        deltaCommit = metaClient.getActiveTimeline().getDeltaCommitTimeline().lastInstant();
+        assertTrue(deltaCommit.isPresent());
+        LOG.warn("Deltacommit 2 complete and avaialble " + deltaCommit.get().toString());
+        assertEquals("002", deltaCommit.get().getTimestamp(), "Delta commit should be 002");
+
+        commit = metaClient.getActiveTimeline().getCommitTimeline().lastInstant();
+        assertFalse(commit.isPresent());
+
+        allFiles = listAllBaseFilesInPath(hoodieTable);
+
+        tableView = getHoodieTableFileSystemView(metaClient, hoodieTable.getCompletedCommitsTimeline(), allFiles);
+        dataFilesToRead = tableView.getLatestBaseFiles();
+        assertTrue(dataFilesToRead.findAny().isPresent(),
+            "should list the base files we wrote in the delta commit 2");
+        baseFiles = tableView.getLatestBaseFiles().collect(Collectors.toList());
+        LOG.warn("Printing all base files just before rollback of DC2");
+        for (HoodieBaseFile baseFile: baseFiles) {
+          LOG.warn("Base files after second detla commit. commit time " + baseFile.getCommitTime() + ", fileid  "
+              + baseFile.getFileId() + ", filename " + baseFile.getFileName());
+        }
+        LOG.warn("\n\nRolling back commit 2 " + commitTime1);
+
         // Test failed delta commit rollback
         secondClient.rollback(commitTime1);
         allFiles = listAllBaseFilesInPath(hoodieTable);
+        LOG.warn("Printing all base files after rollback of DC2");
+        for (HoodieBaseFile baseFile: baseFiles) {
+          LOG.warn("Base files after second detla commit and rollback. commit time " + baseFile.getCommitTime() + ", fileid  "
+              + baseFile.getFileId() + ", filename " + baseFile.getFileName());
+        }
         // After rollback, there should be no base file with the failed commit time
         List<String> remainingFiles = Arrays.stream(allFiles).filter(file -> file.getPath().getName()
             .contains(commitTime1)).map(fileStatus -> fileStatus.getPath().toString()).collect(Collectors.toList());
@@ -672,9 +715,41 @@ public class TestHoodieMergeOnReadTable extends HoodieClientTestHarness {
         // Verify there are no errors
         assertNoWriteErrors(statuses);
 
+        // adding extra
+        metaClient = getHoodieMetaClient(hadoopConf, cfg.getBasePath());
+        hoodieTable = HoodieSparkTable.create(cfg, context, metaClient);
+
+        deltaCommit = metaClient.getActiveTimeline().getDeltaCommitTimeline().lastInstant();
+        assertTrue(deltaCommit.isPresent());
+        LOG.warn("Deltacommit 3 complete and avaialble " + deltaCommit.get().toString());
+        assertEquals("002", deltaCommit.get().getTimestamp(), "Delta commit should be 002");
+
+        commit = metaClient.getActiveTimeline().getCommitTimeline().lastInstant();
+        assertFalse(commit.isPresent());
+
+        allFiles = listAllBaseFilesInPath(hoodieTable);
+
+        tableView = getHoodieTableFileSystemView(metaClient, hoodieTable.getCompletedCommitsTimeline(), allFiles);
+        dataFilesToRead = tableView.getLatestBaseFiles();
+        assertTrue(dataFilesToRead.findAny().isPresent(),
+            "should list the base files we wrote in the delta commit 2");
+        baseFiles = tableView.getLatestBaseFiles().collect(Collectors.toList());
+        LOG.warn("Printing all base files just before rollback of DC3");
+        for (HoodieBaseFile baseFile: baseFiles) {
+          LOG.warn("Base files after third detla commit. commit time " + baseFile.getCommitTime() + ", fileid  "
+              + baseFile.getFileId() + ", filename " + baseFile.getFileName());
+        }
+        LOG.warn("\n\nRolling back commit 3 " + commitTime1);
+
         // Test successful delta commit rollback
         thirdClient.rollback(commitTime2);
         allFiles = listAllBaseFilesInPath(hoodieTable);
+        LOG.warn("Printing all base files after rollback of DC3");
+        for (HoodieBaseFile baseFile: baseFiles) {
+          LOG.warn("Base files after second detla commit. commit time " + baseFile.getCommitTime() + ", fileid  "
+              + baseFile.getFileId() + ", filename " + baseFile.getFileName());
+        }
+
         // After rollback, there should be no base file with the failed commit time
         assertEquals(0, Arrays.stream(allFiles)
             .filter(file -> file.getPath().getName().contains(commitTime2)).count());
@@ -683,6 +758,10 @@ public class TestHoodieMergeOnReadTable extends HoodieClientTestHarness {
         hoodieTable = HoodieSparkTable.create(cfg, context, metaClient);
         tableView = getHoodieTableFileSystemView(metaClient, hoodieTable.getCompletedCommitsTimeline(), allFiles);
         dataFiles = tableView.getLatestBaseFiles().map(HoodieBaseFile::getPath).collect(Collectors.toList());
+        for (HoodieBaseFile baseFile: baseFiles) {
+          LOG.warn("Base files after third detla commit. commit time " + baseFile.getCommitTime() + ", fileid  "
+              + baseFile.getFileId() + ", filename " + baseFile.getFileName());
+        }
         recordsRead = HoodieMergeOnReadTestUtils.getRecordsUsingInputFormat(hadoopConf, dataFiles, basePath);
         // check that the number of records read is still correct after rollback operation
         assertEquals(200, recordsRead.size());
@@ -723,7 +802,7 @@ public class TestHoodieMergeOnReadTable extends HoodieClientTestHarness {
     }
   }
 
-  @Test
+  @RepeatedTest(100)
   public void testRollbackWithDeltaAndCompactionCommitUsingFileList() throws Exception {
     testRollbackWithDeltaAndCompactionCommit(false);
   }
