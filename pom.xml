@@ -1041,6 +1041,10 @@
       </snapshots>
     </repository>
     <repository>
+      <id>pentaho.org</id>
+      <url>https://public.nexus.pentaho.org/repository/proxy-public-3rd-party-release/</url>
+    </repository>
+    <repository>
       <id>cloudera-repo-releases</id>
       <url>https://repository.cloudera.com/artifactory/public/</url>
       <releases>
