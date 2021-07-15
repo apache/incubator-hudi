@@ -190,6 +190,7 @@ public class StreamWriteFunction<K, I, O>
     this.tracer = new TotalSizeTracer(this.config);
     initBuffer();
     initWriteFunction();
+    initMetrics();
   }
 
   @Override
@@ -303,6 +304,10 @@ public class StreamWriteFunction<K, I, O>
       default:
         throw new RuntimeException("Unsupported write operation : " + writeOperation);
     }
+  }
+
+  private void initMetrics() {
+    this.writeClient.registerMetricsGroup(config.getString(FlinkOptions.TABLE_NAME), getClass().getSimpleName());
   }
 
   private void restoreWriteMetadata() throws Exception {

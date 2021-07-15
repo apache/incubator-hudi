@@ -129,6 +129,7 @@
                   <include>org.apache.flink:flink-avro</include>
                   <include>org.apache.flink:flink-json</include>
                   <include>org.apache.flink:flink-parquet_${scala.binary.version}</include>
+                  <include>org.apache.flink:flink-metrics-dropwizard</include>
 
                   <include>org.apache.hive:hive-common</include>
                   <include>org.apache.hive:hive-service</include>
@@ -324,6 +325,12 @@
     <dependency>
       <groupId>org.apache.flink</groupId>
       <artifactId>flink-json</artifactId>
+      <version>${flink.version}</version>
+      <scope>compile</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.flink</groupId>
+      <artifactId>flink-metrics-dropwizard</artifactId>
       <version>${flink.version}</version>
       <scope>compile</scope>
     </dependency>

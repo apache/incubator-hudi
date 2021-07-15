@@ -75,6 +75,7 @@ public class CompactionCommitSink extends CleanFunction<CompactionCommitEvent> {
     super.open(parameters);
     if (writeClient == null) {
       this.writeClient = StreamerUtil.createWriteClient(conf, getRuntimeContext());
+      this.writeClient.registerMetricsGroup(conf.getString(FlinkOptions.TABLE_NAME), getClass().getSimpleName());
     }
     this.commitBuffer = new HashMap<>();
   }

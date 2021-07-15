@@ -21,6 +21,7 @@ package org.apache.hudi.sink.compact;
 import org.apache.hudi.client.HoodieFlinkWriteClient;
 import org.apache.hudi.client.WriteStatus;
 import org.apache.hudi.common.model.CompactionOperation;
+import org.apache.hudi.configuration.FlinkOptions;
 import org.apache.hudi.sink.utils.NonThrownExecutor;
 import org.apache.hudi.table.HoodieFlinkCopyOnWriteTable;
 import org.apache.hudi.table.action.compact.HoodieFlinkMergeOnReadTableCompactor;
@@ -29,6 +30,7 @@ import org.apache.hudi.util.StreamerUtil;
 import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.functions.ProcessFunction;
+import org.apache.flink.metrics.Histogram;
 import org.apache.flink.util.Collector;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -68,6 +70,8 @@ public class CompactFunction extends ProcessFunction<CompactionPlanEvent, Compac
    */
   private transient NonThrownExecutor executor;
 
+  private transient Histogram compactionHistogram;
+
   public CompactFunction(Configuration conf) {
     this.conf = conf;
     this.asyncCompaction = StreamerUtil.needsAsyncCompaction(conf);
@@ -80,6 +84,7 @@ public class CompactFunction extends ProcessFunction<CompactionPlanEvent, Compac
     if (this.asyncCompaction) {
       this.executor = new NonThrownExecutor(LOG);
     }
+    this.compactionHistogram = writeClient.registerMetricsGroup(conf.getString(FlinkOptions.TABLE_NAME), getClass().getSimpleName()).getCompactionHistogram();
   }
 
   @Override
@@ -99,6 +104,7 @@ public class CompactFunction extends ProcessFunction<CompactionPlanEvent, Compac
   }
 
   private void doCompaction(String instantTime, CompactionOperation compactionOperation, Collector<CompactionCommitEvent> collector) throws IOException {
+    long startCompaction = System.currentTimeMillis();
     HoodieFlinkMergeOnReadTableCompactor compactor = new HoodieFlinkMergeOnReadTableCompactor();
     List<WriteStatus> writeStatuses = compactor.compact(
         new HoodieFlinkCopyOnWriteTable<>(
@@ -109,6 +115,8 @@ public class CompactFunction extends ProcessFunction<CompactionPlanEvent, Compac
         this.writeClient.getConfig(),
         compactionOperation,
         instantTime);
+    long now = System.currentTimeMillis();
+    compactionHistogram.update(now - startCompaction);
     collector.collect(new CompactionCommitEvent(instantTime, writeStatuses, taskID));
   }
 
