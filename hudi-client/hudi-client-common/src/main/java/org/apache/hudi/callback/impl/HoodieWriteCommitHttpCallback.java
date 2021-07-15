@@ -43,8 +43,6 @@ public class HoodieWriteCommitHttpCallback implements HoodieWriteCommitCallback 
   public void call(HoodieWriteCommitCallbackMessage callbackMessage) {
     // convert to json
     String callbackMsg = HoodieWriteCommitCallbackUtil.convertToJsonString(callbackMessage);
-    LOG.info("Try to send callbackMsg, msg = " + callbackMsg);
     client.send(callbackMsg);
   }
-
 }

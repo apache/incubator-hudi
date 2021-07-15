@@ -17,7 +17,10 @@
 
 package org.apache.hudi.callback.common;
 
+import org.apache.hudi.common.model.HoodieWriteStat;
+
 import java.io.Serializable;
+import java.util.List;
 
 /**
  * Base callback message, which contains commitTime and tableName only for now.
@@ -41,13 +44,19 @@ public class HoodieWriteCommitCallbackMessage implements Serializable {
    */
   private String basePath;
 
+  /**
+   * HoodieWriteStat.
+   */
+  private List<HoodieWriteStat> hoodieWriteStat;
+
   public HoodieWriteCommitCallbackMessage() {
   }
 
-  public HoodieWriteCommitCallbackMessage(String commitTime, String tableName, String basePath) {
+  public HoodieWriteCommitCallbackMessage(String commitTime, String tableName, String basePath, List<HoodieWriteStat> hoodieWriteStat) {
     this.commitTime = commitTime;
     this.tableName = tableName;
     this.basePath = basePath;
+    this.hoodieWriteStat = hoodieWriteStat;
   }
 
   public String getCommitTime() {
@@ -72,5 +81,13 @@ public class HoodieWriteCommitCallbackMessage implements Serializable {
 
   public void setBasePath(String basePath) {
     this.basePath = basePath;
+  }
+
+  public List<HoodieWriteStat> getHoodieWriteStat() {
+    return hoodieWriteStat;
+  }
+
+  public void setHoodieWriteStat(List<HoodieWriteStat> hoodieWriteStat) {
+    this.hoodieWriteStat = hoodieWriteStat;
   }
 }
