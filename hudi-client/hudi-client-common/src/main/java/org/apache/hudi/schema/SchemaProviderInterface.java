@@ -19,18 +19,23 @@
 package org.apache.hudi.schema;
 
 import org.apache.avro.Schema;
+import org.apache.hudi.ApiMaturityLevel;
+import org.apache.hudi.PublicAPIMethod;
 
 import java.io.Serializable;
 
 /**
  * Class to provide schema for reading data and also writing into a Hoodie table.
  */
-public abstract class SchemaProvider implements Serializable {
+public interface SchemaProviderInterface extends Serializable {
 
-  public abstract Schema getSourceSchema();
+  @PublicAPIMethod(maturity = ApiMaturityLevel.STABLE)
+  Schema getSourceSchema();
 
-  public Schema getTargetSchema() {
+  @PublicAPIMethod(maturity = ApiMaturityLevel.STABLE)
+  default Schema getTargetSchema() {
     // by default, use source schema as target for hoodie table as well
     return getSourceSchema();
   }
+
 }
