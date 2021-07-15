@@ -70,7 +70,7 @@
     "name" : "height",
     "type" : {
       "type" : "fixed",
-      "name" : "abc",
+      "name" : "fixed",
       "size" : 5,
       "logicalType" : "decimal",
       "precision" : 10,

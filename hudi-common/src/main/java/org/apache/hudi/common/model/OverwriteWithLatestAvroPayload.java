@@ -35,7 +35,7 @@ import java.io.IOException;
  * <li> combineAndGetUpdateValue/getInsertValue - Simply overwrites storage with latest delta record
  * </ol>
  */
-public class OverwriteWithLatestAvroPayload extends BaseAvroPayload
+public class OverwriteWithLatestAvroPayload extends BaseAvroPayloadWithSchema
     implements HoodieRecordPayload<OverwriteWithLatestAvroPayload> {
 
   public OverwriteWithLatestAvroPayload(GenericRecord record, Comparable orderingVal) {
@@ -66,7 +66,7 @@ public class OverwriteWithLatestAvroPayload extends BaseAvroPayload
     if (recordBytes.length == 0) {
       return Option.empty();
     }
-    IndexedRecord indexedRecord = HoodieAvroUtils.bytesToAvro(recordBytes, schema);
+    IndexedRecord indexedRecord = HoodieAvroUtils.bytesToAvro(recordBytes, writerSchema, schema);
     if (isDeleteRecord((GenericRecord) indexedRecord)) {
       return Option.empty();
     } else {

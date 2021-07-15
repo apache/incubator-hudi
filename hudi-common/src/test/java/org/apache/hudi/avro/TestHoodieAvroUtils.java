@@ -46,8 +46,11 @@ public class TestHoodieAvroUtils {
       + "{\"name\": \"timestamp\",\"type\": \"double\"},{\"name\": \"_row_key\", \"type\": \"string\"},"
       + "{\"name\": \"non_pii_col\", \"type\": \"string\"},"
       + "{\"name\": \"pii_col\", \"type\": \"string\", \"column_category\": \"user_profile\"},"
-      + "{\"name\": \"new_col1\", \"type\": \"string\", \"default\": \"dummy_val\"},"
-      + "{\"name\": \"new_col2\", \"type\": [\"int\", \"null\"]}]}";
+      + "{\"name\": \"new_col_not_nullable_default_dummy_val\", \"type\": \"string\", \"default\": \"dummy_val\"},"
+      + "{\"name\": \"new_col_nullable_wo_default\", \"type\": [\"int\", \"null\"]},"
+      + "{\"name\": \"new_col_nullable_default_null\", \"type\": [\"null\" ,\"string\"],\"default\": null},"
+      + "{\"name\": \"new_col_nullable_default_dummy_val\", \"type\": [\"string\" ,\"null\"],\"default\": \"dummy_val\"}]}";
+
 
   private static String EXAMPLE_SCHEMA = "{\"type\": \"record\",\"name\": \"testrec\",\"fields\": [ "
       + "{\"name\": \"timestamp\",\"type\": \"double\"},{\"name\": \"_row_key\", \"type\": \"string\"},"
@@ -111,8 +114,10 @@ public class TestHoodieAvroUtils {
     rec.put("timestamp", 3.5);
     Schema schemaWithMetadata = HoodieAvroUtils.addMetadataFields(new Schema.Parser().parse(EVOLVED_SCHEMA));
     GenericRecord rec1 = HoodieAvroUtils.rewriteRecord(rec, schemaWithMetadata);
-    assertEquals(rec1.get("new_col1"), "dummy_val");
-    assertNull(rec1.get("new_col2"));
+    assertEquals(rec1.get("new_col_not_nullable_default_dummy_val"), "dummy_val");
+    assertNull(rec1.get("new_col_nullable_wo_default"));
+    assertNull(rec1.get("new_col_nullable_default_null"));
+    assertEquals(rec1.get("new_col_nullable_default_dummy_val"), "dummy_val");
     assertNull(rec1.get(HoodieRecord.RECORD_KEY_METADATA_FIELD));
   }
 
@@ -124,8 +129,8 @@ public class TestHoodieAvroUtils {
     rec.put("pii_col", "val2");
     rec.put("timestamp", 3.5);
     GenericRecord rec1 = HoodieAvroUtils.rewriteRecord(rec, new Schema.Parser().parse(EVOLVED_SCHEMA));
-    assertEquals(rec1.get("new_col1"), "dummy_val");
-    assertNull(rec1.get("new_col2"));
+    assertEquals(rec1.get("new_col_not_nullable_default_dummy_val"), "dummy_val");
+    assertNull(rec1.get("new_col_nullable_wo_default"));
   }
 
   @Test

@@ -108,7 +108,7 @@ public class HoodieTestDataGenerator {
       + "{\"name\": \"nation\", \"type\": \"bytes\"},"
       + "{\"name\":\"current_date\",\"type\": {\"type\": \"int\", \"logicalType\": \"date\"}},"
       + "{\"name\":\"current_ts\",\"type\": {\"type\": \"long\"}},"
-      + "{\"name\":\"height\",\"type\":{\"type\":\"fixed\",\"name\":\"abc\",\"size\":5,\"logicalType\":\"decimal\",\"precision\":10,\"scale\":6}},";
+      + "{\"name\":\"height\",\"type\":{\"type\":\"fixed\",\"name\":\"fixed\",\"size\":5,\"logicalType\":\"decimal\",\"precision\":10,\"scale\":6}},";
 
   public static final String TRIP_EXAMPLE_SCHEMA =
       TRIP_SCHEMA_PREFIX + EXTRA_TYPE_SCHEMA + MAP_TYPE_SCHEMA + FARE_NESTED_SCHEMA + TIP_NESTED_SCHEMA + TRIP_SCHEMA_SUFFIX;
