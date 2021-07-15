@@ -152,14 +152,16 @@ public class BucketAssigner implements AutoCloseable {
       NewFileAssignState newFileAssignState = newFileAssignStates.get(partitionPath);
       if (newFileAssignState.canAssign()) {
         newFileAssignState.assign();
+        final String key = StreamerUtil.generateBucketKey(partitionPath, newFileAssignState.fileId);
+        return bucketInfoMap.get(key);
       }
-      final String key = StreamerUtil.generateBucketKey(partitionPath, newFileAssignState.fileId);
-      return bucketInfoMap.get(key);
     }
     BucketInfo bucketInfo = new BucketInfo(bucketType, FSUtils.createNewFileIdPfx(), partitionPath);
     final String key = StreamerUtil.generateBucketKey(partitionPath, bucketInfo.getFileIdPrefix());
     bucketInfoMap.put(key, bucketInfo);
-    newFileAssignStates.put(partitionPath, new NewFileAssignState(bucketInfo.getFileIdPrefix(), writeProfile.getRecordsPerBucket()));
+    NewFileAssignState newFileAssignState = new NewFileAssignState(bucketInfo.getFileIdPrefix(), writeProfile.getRecordsPerBucket());
+    newFileAssignState.assign();
+    newFileAssignStates.put(partitionPath, newFileAssignState);
     return bucketInfo;
   }
 

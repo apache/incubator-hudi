@@ -25,6 +25,7 @@ import org.apache.hudi.common.model.HoodieRecordLocation;
 import org.apache.hudi.common.table.timeline.HoodieInstant;
 import org.apache.hudi.common.table.timeline.HoodieTimeline;
 import org.apache.hudi.common.util.Option;
+import org.apache.hudi.config.HoodieCompactionConfig;
 import org.apache.hudi.config.HoodieWriteConfig;
 import org.apache.hudi.sink.partitioner.profile.WriteProfile;
 import org.apache.hudi.table.action.commit.BucketInfo;
@@ -49,6 +50,7 @@ import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -117,6 +119,26 @@ public class TestBucketAssigner {
 
     bucketInfo = mockBucketAssigner.addInsert("par3");
     assertBucketEquals(bucketInfo, "par3", BucketType.INSERT);
+  }
+
+  @Test
+  public void testInsertOverBucketAssigned() {
+    conf.setInteger(HoodieCompactionConfig.COPY_ON_WRITE_TABLE_INSERT_SPLIT_SIZE.key(), 2);
+    writeConfig = StreamerUtil.getHoodieClientConfig(conf);
+
+    MockBucketAssigner mockBucketAssigner = new MockBucketAssigner(context, writeConfig);
+    BucketInfo bucketInfo1 = mockBucketAssigner.addInsert("par1");
+    assertBucketEquals(bucketInfo1, "par1", BucketType.INSERT);
+
+    BucketInfo bucketInfo2 = mockBucketAssigner.addInsert("par1");
+    assertBucketEquals(bucketInfo2, "par1", BucketType.INSERT);
+
+    assertEquals(bucketInfo1, bucketInfo2);
+
+    BucketInfo bucketInfo3 = mockBucketAssigner.addInsert("par1");
+    assertBucketEquals(bucketInfo3, "par1", BucketType.INSERT);
+
+    assertNotEquals(bucketInfo1, bucketInfo3);
   }
 
   @Test
