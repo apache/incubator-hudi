@@ -18,6 +18,10 @@
 
 package org.apache.hudi.common.model;
 
+import org.apache.avro.Schema;
+
+import java.util.Properties;
+
 /**
  * Holds payload properties that implementation of {@link HoodieRecordPayload} can leverage.
  * Since both payload classes and HoodiePayloadConfig needs to access these props, storing it here in hudi-common.
@@ -38,4 +42,10 @@ public class HoodiePayloadProps {
    * @see DefaultHoodieRecordPayload
    */
   public static final String PAYLOAD_EVENT_TIME_FIELD_PROP_KEY = "hoodie.payload.event.time.field";
+
+  /**
+   * A runtime config pass to the {@link HoodieRecordPayload#getInsertValue(Schema, Properties)}
+   * to tell if the current record is a update record or insert record for mor table.
+   */
+  public static final String PAYLOAD_IS_UPDATE_RECORD_FOR_MOR = "hoodie.is.update.record.for.mor";
 }

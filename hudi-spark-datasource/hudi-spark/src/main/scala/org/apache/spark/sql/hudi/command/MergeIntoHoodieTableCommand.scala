@@ -224,15 +224,9 @@ case class MergeIntoHoodieTableCommand(mergeInto: MergeIntoTable) extends Runnab
     assert(deleteActions.size <= 1, "Should be only one delete action in the merge into statement.")
     val deleteAction = deleteActions.headOption
 
-    val insertActions = if (targetTableType == MOR_TABLE_TYPE_OPT_VAL) {
-      // For Mor table, the update record goes through the HoodieRecordPayload#getInsertValue
-      // We append the update actions to the insert actions, so that we can execute the update
-      // actions in the ExpressionPayload#getInsertValue.
-      mergeInto.notMatchedActions.map(_.asInstanceOf[InsertAction]) ++
-        updateActions.map(update => InsertAction(update.condition, update.assignments))
-    } else {
+    val insertActions =
       mergeInto.notMatchedActions.map(_.asInstanceOf[InsertAction])
-    }
+
     // Check for the insert actions
     checkInsertAssignments(insertActions)
 
@@ -303,6 +297,16 @@ case class MergeIntoHoodieTableCommand(mergeInto: MergeIntoTable) extends Runnab
       assert(update.assignments.length == targetTableSchemaWithoutMetaFields.length,
         s"The number of update assignments[${update.assignments.length}] must equal to the " +
           s"targetTable field size[${targetTableSchemaWithoutMetaFields.length}]"))
+    // For MOR table, the target table field cannot be the right-value in the update action.
+    if (targetTableType == MOR_TABLE_TYPE_OPT_VAL) {
+      updateActions.foreach(update => {
+        val targetAttrs = update.assignments.flatMap(a => a.value.collect {
+          case attr: AttributeReference if mergeInto.targetTable.outputSet.contains(attr) => attr
+        })
+        assert(targetAttrs.isEmpty,
+          s"Target table's field(${targetAttrs.map(_.name).mkString(",")}) cannot be the right-value of the update clause for MOR table.")
+      })
+    }
   }
 
   private def checkInsertAssignments(insertActions: Seq[InsertAction]): Unit = {
@@ -310,6 +314,7 @@ case class MergeIntoHoodieTableCommand(mergeInto: MergeIntoTable) extends Runnab
       assert(insert.assignments.length == targetTableSchemaWithoutMetaFields.length,
         s"The number of insert assignments[${insert.assignments.length}] must equal to the " +
           s"targetTable field size[${targetTableSchemaWithoutMetaFields.length}]"))
+
   }
 
   private def getTableSchema: Schema = {
@@ -399,7 +404,7 @@ case class MergeIntoHoodieTableCommand(mergeInto: MergeIntoTable) extends Runnab
       references.foreach(ref => {
         if (ref.ordinal >= sourceDFOutput.size) {
           val targetColumn = targetTableSchemaWithoutMetaFields(ref.ordinal - sourceDFOutput.size)
-          throw new IllegalArgumentException(s"Insert clause cannot contain target table field: $targetColumn" +
+          throw new IllegalArgumentException(s"Insert clause cannot contain target table's field: ${targetColumn.name}" +
             s" in ${exp.sql}")
         }
       })

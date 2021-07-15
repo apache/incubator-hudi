@@ -29,7 +29,7 @@ import org.apache.avro.util.Utf8
 import org.apache.hudi.DataSourceWriteOptions._
 import org.apache.hudi.avro.HoodieAvroUtils
 import org.apache.hudi.avro.HoodieAvroUtils.bytesToAvro
-import org.apache.hudi.common.model.{DefaultHoodieRecordPayload, HoodieRecord}
+import org.apache.hudi.common.model.{DefaultHoodieRecordPayload, HoodiePayloadProps, HoodieRecord}
 import org.apache.hudi.common.util.{ValidationUtils, Option => HOption}
 import org.apache.hudi.config.HoodieWriteConfig
 import org.apache.hudi.io.HoodieWriteHandle
@@ -76,7 +76,21 @@ class ExpressionPayload(record: GenericRecord,
                                         schema: Schema, properties: Properties): HOption[IndexedRecord] = {
     val sourceRecord = bytesToAvro(recordBytes, schema)
     val joinSqlRecord = new SqlTypedRecord(joinRecord(sourceRecord, targetRecord))
+    processMatchedRecord(joinSqlRecord, Some(targetRecord), properties)
+  }
 
+  /**
+   * Process the matched record. Firstly test if the record matched any of the update-conditions,
+   * if matched, return the update assignments result. Secondly, test if the record matched
+   * delete-condition, if matched then return a delete record. Finally if no condition matched,
+   * return a {@link HoodieWriteHandle.IGNORE_RECORD} which will be ignored by HoodieWriteHandle.
+   * @param inputRecord  The input record to process.
+   * @param targetRecord The origin exist record.
+   * @param properties   The properties.
+   * @return The result of the record to update or delete.
+   */
+  private def processMatchedRecord(inputRecord: SqlTypedRecord,
+    targetRecord: Option[IndexedRecord], properties: Properties): HOption[IndexedRecord] = {
     // Process update
     val updateConditionAndAssignmentsText =
       properties.get(ExpressionPayload.PAYLOAD_UPDATE_CONDITION_AND_ASSIGNMENTS)
@@ -90,19 +104,19 @@ class ExpressionPayload(record: GenericRecord,
     val updateConditionAndAssignments = getEvaluator(updateConditionAndAssignmentsText.toString, writeSchema)
     for ((conditionEvaluator, assignmentEvaluator) <- updateConditionAndAssignments
          if resultRecordOpt == null) {
-      val conditionVal = evaluate(conditionEvaluator, joinSqlRecord).head.asInstanceOf[Boolean]
+      val conditionVal = evaluate(conditionEvaluator, inputRecord).head.asInstanceOf[Boolean]
       // If the update condition matched  then execute assignment expression
       // to compute final record to update. We will return the first matched record.
       if (conditionVal) {
-        val results = evaluate(assignmentEvaluator, joinSqlRecord)
+        val results = evaluate(assignmentEvaluator, inputRecord)
         val resultRecord = convertToRecord(results, writeSchema)
 
-        if (needUpdatingPersistedRecord(targetRecord, resultRecord, properties)) {
+        if (targetRecord.isEmpty || needUpdatingPersistedRecord(targetRecord.get, resultRecord, properties)) {
           resultRecordOpt = HOption.of(resultRecord)
         } else {
           // if the PreCombine field value of targetRecord is greate
           // than the new incoming record, just keep the old record value.
-          resultRecordOpt = HOption.of(targetRecord)
+          resultRecordOpt = HOption.of(targetRecord.get)
         }
       }
     }
@@ -111,7 +125,7 @@ class ExpressionPayload(record: GenericRecord,
       val deleteConditionText = properties.get(ExpressionPayload.PAYLOAD_DELETE_CONDITION)
       if (deleteConditionText != null) {
         val deleteCondition = getEvaluator(deleteConditionText.toString, writeSchema).head._1
-        val deleteConditionVal = evaluate(deleteCondition, joinSqlRecord).head.asInstanceOf[Boolean]
+        val deleteConditionVal = evaluate(deleteCondition, inputRecord).head.asInstanceOf[Boolean]
         if (deleteConditionVal) {
           resultRecordOpt = HOption.empty()
         }
@@ -126,48 +140,62 @@ class ExpressionPayload(record: GenericRecord,
     }
   }
 
+  /**
+   * Process the not-matched record. Test if the record matched any of insert-conditions,
+   * if matched then return the result of insert-assignment. Or else return a
+   * {@link HoodieWriteHandle.IGNORE_RECORD} which will be ignored by HoodieWriteHandle.
+   *
+   * @param inputRecord The input record to process.
+   * @param properties  The properties.
+   * @return The result of the record to insert.
+   */
+  private def processNotMatchedRecord(inputRecord: SqlTypedRecord, properties: Properties): HOption[IndexedRecord] = {
+    val insertConditionAndAssignmentsText =
+      properties.get(ExpressionPayload.PAYLOAD_INSERT_CONDITION_AND_ASSIGNMENTS)
+    // Get the evaluator for each condition and insert assignment.
+    initWriteSchemaIfNeed(properties)
+    val insertConditionAndAssignments =
+      ExpressionPayload.getEvaluator(insertConditionAndAssignmentsText.toString, writeSchema)
+    var resultRecordOpt: HOption[IndexedRecord] = null
+    for ((conditionEvaluator, assignmentEvaluator) <- insertConditionAndAssignments
+         if resultRecordOpt == null) {
+      val conditionVal = evaluate(conditionEvaluator, inputRecord).head.asInstanceOf[Boolean]
+      // If matched the insert condition then execute the assignment expressions to compute the
+      // result record. We will return the first matched record.
+      if (conditionVal) {
+        val results = evaluate(assignmentEvaluator, inputRecord)
+        resultRecordOpt = HOption.of(convertToRecord(results, writeSchema))
+      }
+    }
+    if (resultRecordOpt != null) {
+      resultRecordOpt
+    } else {
+      // If there is no condition matched, just filter this record.
+      // Here we return a IGNORE_RECORD, HoodieCreateHandle will not handle it.
+      HOption.of(HoodieWriteHandle.IGNORE_RECORD)
+    }
+  }
+
   override def getInsertValue(schema: Schema, properties: Properties): HOption[IndexedRecord] = {
     val incomingRecord = bytesToAvro(recordBytes, schema)
     if (isDeleteRecord(incomingRecord)) {
       HOption.empty[IndexedRecord]()
     } else {
-      val insertConditionAndAssignmentsText =
-        properties.get(ExpressionPayload.PAYLOAD_INSERT_CONDITION_AND_ASSIGNMENTS)
-      // Process insert
       val sqlTypedRecord = new SqlTypedRecord(incomingRecord)
-      // Get the evaluator for each condition and insert assignment.
-      initWriteSchemaIfNeed(properties)
-      val insertConditionAndAssignments =
-        ExpressionPayload.getEvaluator(insertConditionAndAssignmentsText.toString, writeSchema)
-      var resultRecordOpt: HOption[IndexedRecord] = null
-      for ((conditionEvaluator, assignmentEvaluator) <- insertConditionAndAssignments
-           if resultRecordOpt == null) {
-        val conditionVal = evaluate(conditionEvaluator, sqlTypedRecord).head.asInstanceOf[Boolean]
-        // If matched the insert condition then execute the assignment expressions to compute the
-        // result record. We will return the first matched record.
-        if (conditionVal) {
-          val results = evaluate(assignmentEvaluator, sqlTypedRecord)
-          resultRecordOpt = HOption.of(convertToRecord(results, writeSchema))
+      if (isMORTable(properties)) {
+        // For the MOR table, both the matched and not-matched record will step into the getInsertValue() method.
+        // We call the processMatchedRecord() method if current is a Update-Record to process
+        // the matched record. Or else we call processNotMatchedRecord() method to process the not matched record.
+        val isUpdateRecord = properties.getProperty(HoodiePayloadProps.PAYLOAD_IS_UPDATE_RECORD_FOR_MOR, "false").toBoolean
+        if (isUpdateRecord) {
+          processMatchedRecord(sqlTypedRecord, Option.empty, properties)
+        } else {
+          processNotMatchedRecord(sqlTypedRecord, properties)
         }
-      }
-
-      // Process delete for MOR
-      if (resultRecordOpt == null && isMORTable(properties)) {
-        val deleteConditionText = properties.get(ExpressionPayload.PAYLOAD_DELETE_CONDITION)
-        if (deleteConditionText != null) {
-          val deleteCondition = getEvaluator(deleteConditionText.toString, writeSchema).head._1
-          val deleteConditionVal = evaluate(deleteCondition, sqlTypedRecord).head.asInstanceOf[Boolean]
-          if (deleteConditionVal) {
-            resultRecordOpt = HOption.empty()
-          }
-        }
-      }
-      if (resultRecordOpt != null) {
-        resultRecordOpt
       } else {
-        // If there is no condition matched, just filter this record.
-        // Here we return a IGNORE_RECORD, HoodieCreateHandle will not handle it.
-        HOption.of(HoodieWriteHandle.IGNORE_RECORD)
+        // For COW table, only the not-matched record will step into the getInsertValue method, So just call
+        // the processNotMatchedRecord() here.
+        processNotMatchedRecord(sqlTypedRecord, properties)
       }
     }
   }
