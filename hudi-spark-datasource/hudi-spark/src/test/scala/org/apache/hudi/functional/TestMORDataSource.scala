@@ -17,29 +17,26 @@
 
 package org.apache.hudi.functional
 
-import org.apache.hadoop.fs.Path
-
-import scala.collection.JavaConverters._
-import org.apache.hudi.DataSourceWriteOptions.{KEYGENERATOR_CLASS_OPT_KEY, PARTITIONPATH_FIELD_OPT_KEY, PAYLOAD_CLASS_OPT_KEY, PRECOMBINE_FIELD_OPT_KEY, RECORDKEY_FIELD_OPT_KEY}
+import org.apache.hudi.DataSourceWriteOptions._
 import org.apache.hudi.common.fs.FSUtils
 import org.apache.hudi.common.model.{DefaultHoodieRecordPayload, HoodieTableType}
-import org.apache.hudi.common.table.view.HoodieTableFileSystemView
 import org.apache.hudi.common.testutils.HoodieTestDataGenerator
-import org.apache.hudi.config.{HoodieIndexConfig, HoodieWriteConfig}
-import org.apache.hudi.{DataSourceReadOptions, DataSourceWriteOptions, HoodieDataSourceHelpers, HoodieSparkUtils}
 import org.apache.hudi.common.testutils.RawTripTestPayload.recordsToStrings
+import org.apache.hudi.config.{HoodieIndexConfig, HoodieWriteConfig}
 import org.apache.hudi.index.HoodieIndex.IndexType
 import org.apache.hudi.keygen.NonpartitionedKeyGenerator
 import org.apache.hudi.testutils.{DataSourceTestUtils, HoodieClientTestBase}
+import org.apache.hudi.{DataSourceReadOptions, DataSourceWriteOptions, HoodieDataSourceHelpers}
 import org.apache.log4j.LogManager
 import org.apache.spark.sql._
 import org.apache.spark.sql.functions._
-import org.junit.jupiter.api.Assertions.{assertEquals, assertFalse, assertTrue}
+import org.junit.jupiter.api.Assertions.{assertEquals, assertTrue}
 import org.junit.jupiter.api.{AfterEach, BeforeEach, Test}
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.{CsvSource, ValueSource}
 
 import scala.collection.JavaConversions._
+import scala.collection.JavaConverters._
 
 /**
  * Tests on Spark DataSource for MOR table.
@@ -231,7 +228,7 @@ class TestMORDataSource extends HoodieClientTestBase {
     assertEquals(100, hudiSnapshotDF3.count())
 
     // 50 from commit2, 50 from commit3
-    assertEquals(hudiSnapshotDF3.select("_hoodie_commit_time").distinct().count(), 2)
+    assertEquals(2, hudiSnapshotDF3.select("_hoodie_commit_time").distinct().count())
     assertEquals(50, hudiSnapshotDF3.filter(col("_hoodie_commit_time") > commit2Time).count())
     assertEquals(50,
       hudiSnapshotDF3.join(hudiSnapshotDF2, Seq("_hoodie_record_key", "_hoodie_commit_time"), "inner").count())
@@ -512,7 +509,7 @@ class TestMORDataSource extends HoodieClientTestBase {
   }
 
   @Test
-  def testPreCombineFiledForReadMOR(): Unit = {
+  def testPreCombineFieldForReadMOR(): Unit = {
     writeData((1, "a0",10, 100))
     checkAnswer((1, "a0",10, 100))
 

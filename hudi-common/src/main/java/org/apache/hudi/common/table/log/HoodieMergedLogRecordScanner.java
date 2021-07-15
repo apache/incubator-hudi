@@ -130,7 +130,10 @@ public class HoodieMergedLogRecordScanner extends AbstractHoodieLogRecordScanner
     if (records.containsKey(key)) {
       // Merge and store the merged record. The HoodieRecordPayload implementation is free to decide what should be
       // done when a delete (empty payload) is encountered before or after an insert/update.
-      HoodieRecordPayload combinedValue = hoodieRecord.getData().preCombine(records.get(key).getData());
+
+      // The file slice view sort the logs from old to new, so the old records were put into the map first,
+      // use the old record to preCombine the new one.
+      HoodieRecordPayload combinedValue = records.get(key).getData().preCombine(hoodieRecord.getData());
       records.put(key, new HoodieRecord<>(new HoodieKey(key, hoodieRecord.getPartitionPath()), combinedValue));
     } else {
       // Put the record as is

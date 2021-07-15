@@ -72,6 +72,17 @@ public class TestOverwriteWithLatestAvroPayload {
 
     assertEquals(payload1.combineAndGetUpdateValue(record2, schema).get(), record1);
     assertEquals(payload2.combineAndGetUpdateValue(record1, schema).get(), record2);
+
+    GenericRecord record3 = new GenericData.Record(schema);
+    record3.put("id", "3");
+    record3.put("partition", "partition2");
+    record3.put("ts", 2L);
+    record3.put("_hoodie_is_deleted", false);
+
+    // same preCombine field with payload2
+    OverwriteWithLatestAvroPayload payload3 = new OverwriteWithLatestAvroPayload(record3, 2);
+    assertEquals(payload2.preCombine(payload3), payload3);
+    assertEquals(payload3.preCombine(payload2), payload2);
   }
 
   @Test

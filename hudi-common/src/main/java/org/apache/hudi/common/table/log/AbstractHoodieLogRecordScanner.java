@@ -27,6 +27,7 @@ import org.apache.hudi.common.model.HoodieKey;
 import org.apache.hudi.common.model.HoodieLogFile;
 import org.apache.hudi.common.model.HoodieRecord;
 import org.apache.hudi.common.model.HoodieRecordPayload;
+import org.apache.hudi.common.model.OverwriteWithLatestAvroPayload;
 import org.apache.hudi.common.table.HoodieTableMetaClient;
 import org.apache.hudi.common.table.log.block.HoodieAvroDataBlock;
 import org.apache.hudi.common.table.log.block.HoodieCommandBlock;
@@ -36,6 +37,7 @@ import org.apache.hudi.common.table.log.block.HoodieHFileDataBlock;
 import org.apache.hudi.common.table.log.block.HoodieLogBlock;
 import org.apache.hudi.common.table.timeline.HoodieTimeline;
 import org.apache.hudi.common.util.Option;
+import org.apache.hudi.common.util.ReflectionUtils;
 import org.apache.hudi.common.util.SpillableMapUtils;
 import org.apache.hudi.exception.HoodieException;
 import org.apache.hudi.exception.HoodieIOException;
@@ -52,6 +54,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
+import static org.apache.hudi.avro.HoodieAvroUtils.getNestedFieldVal;
 import static org.apache.hudi.common.table.log.block.HoodieLogBlock.HeaderMetadataType.INSTANT_TIME;
 import static org.apache.hudi.common.table.log.block.HoodieLogBlock.HoodieLogBlockType.COMMAND_BLOCK;
 import static org.apache.hudi.common.table.log.block.HoodieLogBlock.HoodieLogBlockType.CORRUPT_BLOCK;
@@ -93,6 +96,10 @@ public abstract class AbstractHoodieLogRecordScanner {
   private final Option<InstantRange> instantRange;
   // FileSystem
   private final FileSystem fs;
+  // Ordering field
+  private final String orderingField;
+  // Whether combine the records by natural order
+  private final boolean naturalOrder;
   // Total log files read - for metrics
   private AtomicLong totalLogFiles = new AtomicLong(0);
   // Total log blocks read - for metrics
@@ -113,8 +120,11 @@ public abstract class AbstractHoodieLogRecordScanner {
     this.readerSchema = readerSchema;
     this.latestInstantTime = latestInstantTime;
     this.hoodieTableMetaClient = HoodieTableMetaClient.builder().setConf(fs.getConf()).setBasePath(basePath).build();
+    this.orderingField = this.hoodieTableMetaClient.getTableConfig().getPreCombineField();
     // load class from the payload fully qualified class name
     this.payloadClassFQN = this.hoodieTableMetaClient.getTableConfig().getPayloadClass();
+    // only the OverwriteWithLatestAvroPayload needs combining by orderingVal
+    this.naturalOrder = !OverwriteWithLatestAvroPayload.class.isAssignableFrom(ReflectionUtils.getClass(this.payloadClassFQN));
     this.totalLogFiles.addAndGet(logFilePaths.size());
     this.logFilePaths = logFilePaths;
     this.readBlocksLazily = readBlocksLazily;
@@ -302,7 +312,13 @@ public abstract class AbstractHoodieLogRecordScanner {
   }
 
   protected HoodieRecord<?> createHoodieRecord(IndexedRecord rec) {
-    return SpillableMapUtils.convertToHoodieRecordPayload((GenericRecord) rec, this.payloadClassFQN);
+    if (this.naturalOrder) {
+      return SpillableMapUtils.convertToHoodieRecordPayload((GenericRecord) rec, this.payloadClassFQN);
+    } else {
+      Comparable orderingVal = this.orderingField == null
+          ? 0 : (Comparable) getNestedFieldVal((GenericRecord) rec, this.orderingField, true);
+      return SpillableMapUtils.convertToHoodieRecordPayload((GenericRecord) rec, this.payloadClassFQN, orderingVal);
+    }
   }
 
   /**
