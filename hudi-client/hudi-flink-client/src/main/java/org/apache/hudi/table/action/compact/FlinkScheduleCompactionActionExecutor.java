@@ -147,7 +147,7 @@ public class FlinkScheduleCompactionActionExecutor<T extends HoodieRecordPayload
   public Long parsedToSeconds(String time) {
     long timestamp;
     try {
-      timestamp = HoodieActiveTimeline.COMMIT_FORMATTER.parse(time).getTime() / 1000;
+      timestamp = HoodieActiveTimeline.parseInstantTime(time).getTime() / 1000;
     } catch (ParseException e) {
       throw new HoodieCompactionException(e.getMessage(), e);
     }

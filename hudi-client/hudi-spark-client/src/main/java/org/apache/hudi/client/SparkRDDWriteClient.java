@@ -302,7 +302,7 @@ public class SparkRDDWriteClient<T extends HoodieRecordPayload> extends
     if (compactionTimer != null) {
       long durationInMs = metrics.getDurationInMs(compactionTimer.stop());
       try {
-        metrics.updateCommitMetrics(HoodieActiveTimeline.COMMIT_FORMATTER.parse(compactionCommitTime).getTime(),
+        metrics.updateCommitMetrics(HoodieActiveTimeline.parseInstantTime(compactionCommitTime).getTime(),
             durationInMs, metadata, HoodieActiveTimeline.COMPACTION_ACTION);
       } catch (ParseException e) {
         throw new HoodieCommitException("Commit time is not of valid format. Failed to commit compaction "
@@ -374,7 +374,7 @@ public class SparkRDDWriteClient<T extends HoodieRecordPayload> extends
     if (clusteringTimer != null) {
       long durationInMs = metrics.getDurationInMs(clusteringTimer.stop());
       try {
-        metrics.updateCommitMetrics(HoodieActiveTimeline.COMMIT_FORMATTER.parse(clusteringCommitTime).getTime(),
+        metrics.updateCommitMetrics(HoodieActiveTimeline.parseInstantTime(clusteringCommitTime).getTime(),
             durationInMs, metadata, HoodieActiveTimeline.REPLACE_COMMIT_ACTION);
       } catch (ParseException e) {
         throw new HoodieCommitException("Commit time is not of valid format. Failed to commit compaction "

@@ -31,6 +31,7 @@ import org.apache.hudi.common.model.HoodieReplaceCommitMetadata;
 import org.apache.hudi.common.model.IOType;
 import org.apache.hudi.common.table.HoodieTableConfig;
 import org.apache.hudi.common.table.HoodieTableMetaClient;
+import org.apache.hudi.common.table.timeline.HoodieActiveTimeline;
 import org.apache.hudi.common.table.timeline.HoodieInstant;
 import org.apache.hudi.common.table.timeline.HoodieTimeline;
 import org.apache.hudi.common.table.timeline.TimelineMetadataUtils;
@@ -58,7 +59,6 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static java.time.temporal.ChronoUnit.SECONDS;
-import static org.apache.hudi.common.table.timeline.HoodieActiveTimeline.COMMIT_FORMATTER;
 import static org.apache.hudi.common.testutils.FileCreateUtils.baseFileName;
 import static org.apache.hudi.common.testutils.FileCreateUtils.createCleanFile;
 import static org.apache.hudi.common.testutils.FileCreateUtils.createCommit;
@@ -106,7 +106,7 @@ public class HoodieTestTable {
   }
 
   public static String makeNewCommitTime(Instant dateTime) {
-    return COMMIT_FORMATTER.format(Date.from(dateTime));
+    return HoodieActiveTimeline.formatInstantTime(Date.from(dateTime));
   }
 
   public static List<String> makeIncrementalCommitTimes(int num) {

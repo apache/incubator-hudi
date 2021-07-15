@@ -43,7 +43,7 @@ public interface HoodieTableMetadata extends Serializable, AutoCloseable {
    * {@link org.apache.hudi.common.table.timeline.HoodieTimeline#INIT_INSTANT_TS}, such that the metadata table
    * can be prepped even before bootstrap is done.
    */
-  String SOLO_COMMIT_TIMESTAMP = "0000000000000";
+  String SOLO_COMMIT_TIMESTAMP = "00000000000000";
   // Key for the record which saves list of all partitions
   String RECORDKEY_PARTITION_LIST = "__all_partitions__";
   // The partition name used for non-partitioned tables

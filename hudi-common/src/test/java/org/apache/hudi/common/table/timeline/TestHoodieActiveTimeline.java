@@ -25,7 +25,7 @@ import org.apache.hudi.common.testutils.HoodieCommonTestHarness;
 import org.apache.hudi.common.testutils.MockHoodieTimeline;
 import org.apache.hudi.common.util.CollectionUtils;
 import org.apache.hudi.common.util.Option;
-
+import org.apache.hudi.exception.HoodieException;
 import org.apache.hadoop.fs.Path;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -33,10 +33,15 @@ import org.junit.jupiter.api.Test;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Random;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -426,6 +431,45 @@ public class TestHoodieActiveTimeline extends HoodieCommonTestHarness {
     assertEquals(1, validReplaceInstants.size());
     assertEquals(instant.getTimestamp(), validReplaceInstants.get(0).getTimestamp());
     assertEquals(HoodieTimeline.REPLACE_COMMIT_ACTION, validReplaceInstants.get(0).getAction());
+  }
+
+  @Test
+  public void testCreateNewInstantTime() throws Exception {
+    String lastInstantTime = HoodieActiveTimeline.createNewInstantTime();
+    for (int i = 0; i < 3; ++i) {
+      String newInstantTime = HoodieActiveTimeline.createNewInstantTime();
+      assertTrue(HoodieTimeline.compareTimestamps(lastInstantTime, HoodieTimeline.LESSER_THAN, newInstantTime));
+      lastInstantTime = newInstantTime;
+    }
+
+    // All zero timestamp can be parsed
+    HoodieActiveTimeline.parseInstantTime("00000000000000");
+
+    // Multiple thread test
+    final int numChecks = 100000;
+    final int numThreads = 100;
+    final long milliSecondsInYear = 365 * 24 * 3600 * 1000;
+    ExecutorService executorService = Executors.newFixedThreadPool(numThreads);
+    List<Future> futures = new ArrayList<>(numThreads);
+    for (int idx = 0; idx < numThreads; ++idx) {
+      futures.add(executorService.submit(() -> {
+        Date date = new Date(System.currentTimeMillis() + (int)(Math.random() * numThreads) * milliSecondsInYear);
+        final String expectedFormat = HoodieActiveTimeline.formatInstantTime(date);
+        for (int tidx = 0; tidx < numChecks; ++tidx) {
+          final String curFormat = HoodieActiveTimeline.formatInstantTime(date);
+          if (!curFormat.equals(expectedFormat)) {
+            throw new HoodieException("Format error: expected=" + expectedFormat + ", curFormat=" + curFormat);
+          }
+        }
+      }));
+    }
+
+    executorService.shutdown();
+    assertTrue(executorService.awaitTermination(10, TimeUnit.SECONDS));
+    // required to catch exceptions
+    for (Future f : futures) {
+      f.get();
+    }
   }
 
   /**

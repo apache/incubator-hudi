@@ -179,10 +179,10 @@ class HoodieStreamSource(
     startOffset match {
       case INIT_OFFSET => startOffset.commitTime
       case HoodieSourceOffset(commitTime) =>
-        val time = HoodieActiveTimeline.COMMIT_FORMATTER.parse(commitTime).getTime
+        val time = HoodieActiveTimeline.parseInstantTime(commitTime).getTime
         // As we consume the data between (start, end], start is not included,
         // so we +1s to the start commit time here.
-        HoodieActiveTimeline.COMMIT_FORMATTER.format(new Date(time + 1000))
+        HoodieActiveTimeline.formatInstantTime(new Date(time + 1000))
       case _=> throw new IllegalStateException("UnKnow offset type.")
     }
   }

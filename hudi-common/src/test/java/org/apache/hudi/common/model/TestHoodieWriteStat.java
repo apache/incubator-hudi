@@ -19,14 +19,13 @@
 package org.apache.hudi.common.model;
 
 import org.apache.hudi.common.fs.FSUtils;
-
+import org.apache.hudi.common.table.timeline.HoodieActiveTimeline;
 import org.apache.hadoop.fs.Path;
 import org.junit.jupiter.api.Test;
 
 import java.util.Date;
 import java.util.UUID;
 
-import static org.apache.hudi.common.table.timeline.HoodieActiveTimeline.COMMIT_FORMATTER;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
@@ -37,7 +36,7 @@ public class TestHoodieWriteStat {
 
   @Test
   public void testSetPaths() {
-    String instantTime = COMMIT_FORMATTER.format(new Date());
+    String instantTime = HoodieActiveTimeline.formatInstantTime(new Date());
     String basePathString = "/data/tables/some-hoodie-table";
     String partitionPathString = "2017/12/31";
     String fileName = UUID.randomUUID().toString();

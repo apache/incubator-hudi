@@ -228,7 +228,7 @@ public class TestHDFSParquetImporter extends FunctionalTestHarness implements Se
 
   public List<GenericRecord> createInsertRecords(Path srcFolder) throws ParseException, IOException {
     Path srcFile = new Path(srcFolder.toString(), "file1.parquet");
-    long startTime = HoodieActiveTimeline.COMMIT_FORMATTER.parse("20170203000000").getTime() / 1000;
+    long startTime = HoodieActiveTimeline.parseInstantTime("20170203000000").getTime() / 1000;
     List<GenericRecord> records = new ArrayList<GenericRecord>();
     for (long recordNum = 0; recordNum < 96; recordNum++) {
       records.add(HoodieTestDataGenerator.generateGenericRecord(Long.toString(recordNum), "rider-" + recordNum,
@@ -245,7 +245,7 @@ public class TestHDFSParquetImporter extends FunctionalTestHarness implements Se
 
   public List<GenericRecord> createUpsertRecords(Path srcFolder) throws ParseException, IOException {
     Path srcFile = new Path(srcFolder.toString(), "file1.parquet");
-    long startTime = HoodieActiveTimeline.COMMIT_FORMATTER.parse("20170203000000").getTime() / 1000;
+    long startTime = HoodieActiveTimeline.parseInstantTime("20170203000000").getTime() / 1000;
     List<GenericRecord> records = new ArrayList<GenericRecord>();
     // 10 for update
     for (long recordNum = 0; recordNum < 11; recordNum++) {
