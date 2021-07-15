@@ -94,6 +94,7 @@ public class DeltaConfig implements Serializable {
     private static String VALIDATE_CLEAN = "validate_clean";
     private static String SCHEMA_VERSION = "schema_version";
     private static String NUM_ROLLBACKS = "num_rollbacks";
+    private static String ENABLE_ROW_WRITING = "enable_row_writing";
 
     private Map<String, Object> configsMap;
 
@@ -187,6 +188,10 @@ public class DeltaConfig implements Serializable {
 
     public boolean validateClean() {
       return Boolean.valueOf(configsMap.getOrDefault(VALIDATE_CLEAN, false).toString());
+    }
+
+    public boolean enableRowWriting() {
+      return Boolean.valueOf(configsMap.getOrDefault(ENABLE_ROW_WRITING, false).toString());
     }
 
     public Map<String, Object> getOtherConfigs() {
