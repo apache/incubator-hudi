@@ -45,6 +45,11 @@
        "name":"version",
        "type":["int", "null"],
        "default": 1
+    },
+   {
+      "name":"preserveHoodieMetadata",
+      "type":["null", "boolean"],
+      "default": null
     }
   ]
 }

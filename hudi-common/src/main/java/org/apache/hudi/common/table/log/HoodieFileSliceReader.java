@@ -32,21 +32,21 @@ import java.util.Iterator;
 /**
  * Reads records from base file and merges any updates from log files and provides iterable over all records in the file slice.
  */
-public class HoodieFileSliceReader implements Iterator<HoodieRecord<? extends HoodieRecordPayload>> {
-  private Iterator<HoodieRecord<? extends HoodieRecordPayload>> recordsIterator;
+public class HoodieFileSliceReader<T extends HoodieRecordPayload> implements Iterator<HoodieRecord<T>> {
+  private Iterator<HoodieRecord<T>> recordsIterator;
 
-  public static <R extends IndexedRecord, T extends HoodieRecordPayload> HoodieFileSliceReader getFileSliceReader(
+  public static <R extends IndexedRecord, T> HoodieFileSliceReader getFileSliceReader(
       HoodieFileReader<R> baseFileReader, HoodieMergedLogRecordScanner scanner, Schema schema, String payloadClass) throws IOException {
     Iterator<R> baseIterator = baseFileReader.getRecordIterator(schema);
     while (baseIterator.hasNext()) {
       GenericRecord record = (GenericRecord)  baseIterator.next();
-      HoodieRecord<T> hoodieRecord = SpillableMapUtils.convertToHoodieRecordPayload(record, payloadClass);
+      HoodieRecord<? extends HoodieRecordPayload> hoodieRecord = SpillableMapUtils.convertToHoodieRecordPayload(record, payloadClass);
       scanner.processNextRecord(hoodieRecord);
     }
     return new HoodieFileSliceReader(scanner.iterator());
   }
 
-  private HoodieFileSliceReader(Iterator<HoodieRecord<? extends HoodieRecordPayload>> recordsItr) {
+  private HoodieFileSliceReader(Iterator<HoodieRecord<T>> recordsItr) {
     this.recordsIterator = recordsItr;
   }
 
@@ -56,7 +56,7 @@ public class HoodieFileSliceReader implements Iterator<HoodieRecord<? extends Ho
   }
 
   @Override
-  public HoodieRecord<? extends HoodieRecordPayload> next() {
+  public HoodieRecord<T> next() {
     return recordsIterator.next();
   }
 }

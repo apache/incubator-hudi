@@ -72,8 +72,8 @@ public class SparkInsertOverwriteCommitActionExecutor<T extends HoodieRecordPayl
   }
 
   @Override
-  protected Map<String, List<String>> getPartitionToReplacedFileIds(JavaRDD<WriteStatus> writeStatuses) {
-    return writeStatuses.map(status -> status.getStat().getPartitionPath()).distinct().mapToPair(partitionPath ->
+  protected Map<String, List<String>> getPartitionToReplacedFileIds(HoodieWriteMetadata<JavaRDD<WriteStatus>> writeMetadata) {
+    return writeMetadata.getWriteStatuses().map(status -> status.getStat().getPartitionPath()).distinct().mapToPair(partitionPath ->
         new Tuple2<>(partitionPath, getAllExistingFileIds(partitionPath))).collectAsMap();
   }
 

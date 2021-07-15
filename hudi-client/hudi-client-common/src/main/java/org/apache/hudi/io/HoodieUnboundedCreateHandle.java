@@ -19,28 +19,32 @@
 package org.apache.hudi.io;
 
 import org.apache.hudi.common.engine.TaskContextSupplier;
+import org.apache.hudi.common.model.HoodieRecord;
 import org.apache.hudi.common.model.HoodieRecordPayload;
+import org.apache.hudi.common.util.Option;
 import org.apache.hudi.config.HoodieWriteConfig;
 import org.apache.hudi.table.HoodieTable;
+import org.apache.log4j.LogManager;
+import org.apache.log4j.Logger;
 
-public class CreateHandleFactory<T extends HoodieRecordPayload, I, K, O> extends WriteHandleFactory<T, I, K, O> {
-  
-  private boolean preserveMetadata = false;
-  
-  public CreateHandleFactory() {
-    this(false);
-  }
-  
-  public CreateHandleFactory(boolean preserveMetadata) {
-    this.preserveMetadata = preserveMetadata;
+/**
+ * A HoodieCreateHandle which writes all data into a single file.
+ * 
+ * Please use this with caution. This can end up creating very large files if not used correctly.
+ */
+public class HoodieUnboundedCreateHandle<T extends HoodieRecordPayload, I, K, O> extends HoodieCreateHandle<T, I, K, O> {
+
+  private static final Logger LOG = LogManager.getLogger(HoodieUnboundedCreateHandle.class);
+
+  public HoodieUnboundedCreateHandle(HoodieWriteConfig config, String instantTime, HoodieTable<T, I, K, O> hoodieTable,
+                                     String partitionPath, String fileId, TaskContextSupplier taskContextSupplier,
+                                     boolean preserveHoodieMetadata) {
+    super(config, instantTime, hoodieTable, partitionPath, fileId, Option.empty(),
+        taskContextSupplier, preserveHoodieMetadata);
   }
 
   @Override
-  public HoodieWriteHandle<T, I, K, O> create(final HoodieWriteConfig hoodieConfig, final String commitTime,
-                                     final HoodieTable<T, I, K, O> hoodieTable, final String partitionPath,
-                                     final String fileIdPrefix, TaskContextSupplier taskContextSupplier) {
-
-    return new HoodieCreateHandle(hoodieConfig, commitTime, hoodieTable, partitionPath,
-        getNextFileId(fileIdPrefix), taskContextSupplier, preserveMetadata);
+  public boolean canWrite(HoodieRecord record) {
+    return true;
   }
 }

@@ -71,7 +71,7 @@ public class JavaBulkInsertHelper<T extends HoodieRecordPayload, R> extends Abst
             table.getMetaClient().getCommitActionType(), instantTime), Option.empty(),
         config.shouldAllowMultiWriteOnSameInstant());
     // write new files
-    List<WriteStatus> writeStatuses = bulkInsert(inputRecords, instantTime, table, config, performDedupe, userDefinedBulkInsertPartitioner, false, config.getBulkInsertShuffleParallelism());
+    List<WriteStatus> writeStatuses = bulkInsert(inputRecords, instantTime, table, config, performDedupe, userDefinedBulkInsertPartitioner, false, config.getBulkInsertShuffleParallelism(), false);
     //update index
     ((BaseJavaCommitActionExecutor) executor).updateIndexAndCommitIfNeeded(writeStatuses, result);
     return result;
@@ -85,7 +85,8 @@ public class JavaBulkInsertHelper<T extends HoodieRecordPayload, R> extends Abst
                                       boolean performDedupe,
                                       Option<BulkInsertPartitioner<T>> userDefinedBulkInsertPartitioner,
                                       boolean useWriterSchema,
-                                      int parallelism) {
+                                      int parallelism,
+                                      boolean preserveHoodieMetadata) {
 
     // De-dupe/merge if needed
     List<HoodieRecord<T>> dedupedRecords = inputRecords;

@@ -27,6 +27,7 @@ import org.apache.hudi.common.model.WriteOperationType;
 import org.apache.hudi.common.util.collection.Pair;
 import org.apache.hudi.config.HoodieWriteConfig;
 import org.apache.hudi.table.HoodieTable;
+import org.apache.hudi.table.action.HoodieWriteMetadata;
 
 import java.util.HashMap;
 import java.util.List;
@@ -48,7 +49,7 @@ public class JavaInsertOverwriteTableCommitActionExecutor<T extends HoodieRecord
   }
 
   @Override
-  protected Map<String, List<String>> getPartitionToReplacedFileIds(List<WriteStatus> writeStatuses) {
+  protected Map<String, List<String>> getPartitionToReplacedFileIds(HoodieWriteMetadata<List<WriteStatus>> writeResult) {
     Map<String, List<String>> partitionToExistingFileIds = new HashMap<>();
     List<String> partitionPaths = FSUtils.getAllPartitionPaths(context,
         table.getMetaClient().getBasePath(), config.useFileListingMetadata(),

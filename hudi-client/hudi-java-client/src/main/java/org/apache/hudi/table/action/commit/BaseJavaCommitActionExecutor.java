@@ -216,7 +216,7 @@ public abstract class BaseJavaCommitActionExecutor<T extends HoodieRecordPayload
     }
   }
 
-  protected Map<String, List<String>> getPartitionToReplacedFileIds(List<WriteStatus> writeStatuses) {
+  protected Map<String, List<String>> getPartitionToReplacedFileIds(HoodieWriteMetadata<List<WriteStatus>> writeMetadata) {
     return Collections.emptyMap();
   }
 
@@ -330,7 +330,7 @@ public abstract class BaseJavaCommitActionExecutor<T extends HoodieRecordPayload
     List<WriteStatus> statuses = table.getIndex().updateLocation(writeStatuses, context, table);
     result.setIndexUpdateDuration(Duration.between(indexStartTime, Instant.now()));
     result.setWriteStatuses(statuses);
-    result.setPartitionToReplaceFileIds(getPartitionToReplacedFileIds(statuses));
+    result.setPartitionToReplaceFileIds(getPartitionToReplacedFileIds(result));
     commitOnAutoCommit(result);
   }
 }

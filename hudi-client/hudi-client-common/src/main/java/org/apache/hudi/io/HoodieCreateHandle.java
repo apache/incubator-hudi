@@ -59,18 +59,33 @@ public class HoodieCreateHandle<T extends HoodieRecordPayload, I, K, O> extends 
   protected long recordsDeleted = 0;
   private Map<String, HoodieRecord<T>> recordMap;
   private boolean useWriterSchema = false;
+  private boolean preserveHoodieMetadata = false;
 
   public HoodieCreateHandle(HoodieWriteConfig config, String instantTime, HoodieTable<T, I, K, O> hoodieTable,
                             String partitionPath, String fileId, TaskContextSupplier taskContextSupplier) {
     this(config, instantTime, hoodieTable, partitionPath, fileId, Option.empty(),
-        taskContextSupplier);
+        taskContextSupplier, false);
+  }
+
+  public HoodieCreateHandle(HoodieWriteConfig config, String instantTime, HoodieTable<T, I, K, O> hoodieTable,
+                            String partitionPath, String fileId, TaskContextSupplier taskContextSupplier,
+                            boolean preserveHoodieMetadata) {
+    this(config, instantTime, hoodieTable, partitionPath, fileId, Option.empty(),
+        taskContextSupplier, preserveHoodieMetadata);
   }
 
   public HoodieCreateHandle(HoodieWriteConfig config, String instantTime, HoodieTable<T, I, K, O> hoodieTable,
                             String partitionPath, String fileId, Option<Schema> overriddenSchema,
                             TaskContextSupplier taskContextSupplier) {
+    this(config, instantTime, hoodieTable, partitionPath, fileId, overriddenSchema, taskContextSupplier, false);
+  }
+
+  public HoodieCreateHandle(HoodieWriteConfig config, String instantTime, HoodieTable<T, I, K, O> hoodieTable,
+                            String partitionPath, String fileId, Option<Schema> overriddenSchema,
+                            TaskContextSupplier taskContextSupplier, boolean preserveHoodieMetadata) {
     super(config, instantTime, partitionPath, fileId, hoodieTable, overriddenSchema,
         taskContextSupplier);
+    this.preserveHoodieMetadata = preserveHoodieMetadata;
     writeStatus.setFileId(fileId);
     writeStatus.setPartitionPath(partitionPath);
 
@@ -118,7 +133,11 @@ public class HoodieCreateHandle<T extends HoodieRecordPayload, I, K, O> extends 
         }
         // Convert GenericRecord to GenericRecord with hoodie commit metadata in schema
         IndexedRecord recordWithMetadataInSchema = rewriteRecord((GenericRecord) avroRecord.get());
-        fileWriter.writeAvroWithMetadata(recordWithMetadataInSchema, record);
+        if (preserveHoodieMetadata) {
+          fileWriter.writeAvro(record.getRecordKey(), recordWithMetadataInSchema);
+        } else {
+          fileWriter.writeAvroWithMetadata(recordWithMetadataInSchema, record);
+        }
         // update the new location of record, so we know where to find it next
         record.unseal();
         record.setNewLocation(new HoodieRecordLocation(instantTime, writeStatus.getFileId()));

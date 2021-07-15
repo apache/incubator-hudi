@@ -43,5 +43,6 @@ public abstract class AbstractBulkInsertHelper<T extends HoodieRecordPayload, I,
                                boolean performDedupe,
                                Option<BulkInsertPartitioner<T>> userDefinedBulkInsertPartitioner,
                                boolean addMetadataFields,
-                               int parallelism);
+                               int parallelism,
+                               boolean preserveMetadata);
 }

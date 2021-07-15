@@ -64,9 +64,9 @@ public class JavaInsertOverwriteCommitActionExecutor<T extends HoodieRecordPaylo
   }
 
   @Override
-  protected Map<String, List<String>> getPartitionToReplacedFileIds(List<WriteStatus> writeStatuses) {
+  protected Map<String, List<String>> getPartitionToReplacedFileIds(HoodieWriteMetadata<List<WriteStatus>> writeResult) {
     return context.mapToPair(
-        writeStatuses.stream().map(status -> status.getStat().getPartitionPath()).distinct().collect(Collectors.toList()),
+        writeResult.getWriteStatuses().stream().map(status -> status.getStat().getPartitionPath()).distinct().collect(Collectors.toList()),
         partitionPath ->
             Pair.of(partitionPath, getAllExistingFileIds(partitionPath)), 1
     );

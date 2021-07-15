@@ -68,6 +68,7 @@ import java.nio.charset.StandardCharsets;
 import java.text.ParseException;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @SuppressWarnings("checkstyle:LineLength")
 public class SparkRDDWriteClient<T extends HoodieRecordPayload> extends
@@ -355,11 +356,13 @@ public class SparkRDDWriteClient<T extends HoodieRecordPayload> extends
   private void completeClustering(HoodieReplaceCommitMetadata metadata, JavaRDD<WriteStatus> writeStatuses,
                                     HoodieTable<T, JavaRDD<HoodieRecord<T>>, JavaRDD<HoodieKey>, JavaRDD<WriteStatus>> table,
                                     String clusteringCommitTime) {
+    
+    List<HoodieWriteStat> writeStats = metadata.getPartitionToWriteStats().entrySet().stream().flatMap(e ->
+        e.getValue().stream()).collect(Collectors.toList());
 
-    List<HoodieWriteStat> writeStats = writeStatuses.map(WriteStatus::getStat).collect();
-    if (!writeStatuses.filter(WriteStatus::hasErrors).isEmpty()) {
+    if (writeStats.stream().mapToLong(s -> s.getTotalWriteErrors()).sum() > 0) {
       throw new HoodieClusteringException("Clustering failed to write to files:"
-          + writeStatuses.filter(WriteStatus::hasErrors).map(WriteStatus::getFileId).collect());
+          + writeStats.stream().filter(s -> s.getTotalWriteErrors() > 0L).map(s -> s.getFileId()).collect(Collectors.joining(",")));
     }
     finalizeWrite(table, clusteringCommitTime, writeStats);
     try {
