@@ -38,6 +38,7 @@ import org.apache.hudi.common.table.timeline.HoodieInstant;
 import org.apache.hudi.common.table.timeline.HoodieTimeline;
 import org.apache.hudi.common.util.Option;
 import org.apache.hudi.common.util.ReflectionUtils;
+import org.apache.hudi.common.util.StringUtils;
 import org.apache.hudi.common.util.ValidationUtils;
 import org.apache.hudi.common.util.collection.Pair;
 import org.apache.hudi.config.HoodieClusteringConfig;
@@ -59,6 +60,7 @@ import org.apache.hudi.utilities.schema.DelegatingSchemaProvider;
 import org.apache.hudi.utilities.schema.SchemaProvider;
 import org.apache.hudi.utilities.schema.SchemaSet;
 import org.apache.hudi.utilities.sources.InputBatch;
+import org.apache.hudi.utilities.sources.helpers.KafkaOffsetGen;
 import org.apache.hudi.utilities.transform.Transformer;
 
 import com.codahale.metrics.Timer;
@@ -318,13 +320,11 @@ public class DeltaSync implements Serializable {
       if (lastCommit.isPresent()) {
         HoodieCommitMetadata commitMetadata = HoodieCommitMetadata
             .fromBytes(commitTimelineOpt.get().getInstantDetails(lastCommit.get()).get(), HoodieCommitMetadata.class);
-        if (cfg.checkpoint != null && !cfg.checkpoint.equals(commitMetadata.getMetadata(CHECKPOINT_RESET_KEY))) {
+        if (cfg.checkpoint != null && (StringUtils.isNullOrEmpty(commitMetadata.getMetadata(CHECKPOINT_RESET_KEY))
+                || !cfg.checkpoint.equals(commitMetadata.getMetadata(CHECKPOINT_RESET_KEY)))) {
           resumeCheckpointStr = Option.of(cfg.checkpoint);
-        } else if (commitMetadata.getMetadata(CHECKPOINT_KEY) != null) {
-          //if previous checkpoint is an empty string, skip resume use Option.empty()
-          if (!commitMetadata.getMetadata(CHECKPOINT_KEY).isEmpty()) {
-            resumeCheckpointStr = Option.of(commitMetadata.getMetadata(CHECKPOINT_KEY));
-          }
+        } else if (!StringUtils.isNullOrEmpty(commitMetadata.getMetadata(CHECKPOINT_KEY))) {
+          resumeCheckpointStr = Option.of(commitMetadata.getMetadata(CHECKPOINT_KEY));
         } else if (commitMetadata.getOperationType() == WriteOperationType.CLUSTER) {
           // incase of CLUSTER commit, no checkpoint will be available in metadata.
           resumeCheckpointStr = Option.empty();
@@ -335,6 +335,9 @@ public class DeltaSync implements Serializable {
                   + "was indeed built via delta streamer. Last Commit :" + lastCommit + ", Instants :"
                   + commitTimelineOpt.get().getInstants().collect(Collectors.toList()) + ", CommitMetadata="
                   + commitMetadata.toJsonString());
+        }
+        if (!StringUtils.isNullOrEmpty(commitMetadata.getMetadata(CHECKPOINT_RESET_KEY))) {
+          props.remove(KafkaOffsetGen.Config.KAFKA_CHECKPOINT_TYPE.key());
         }
       }
     } else {

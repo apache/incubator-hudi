@@ -94,11 +94,11 @@ public class TestKafkaSource extends UtilitiesTestBase {
     TypedProperties props = new TypedProperties();
     props.setProperty("hoodie.deltastreamer.source.kafka.topic", TEST_TOPIC_NAME);
     props.setProperty("bootstrap.servers", testUtils.brokerAddress());
-    props.setProperty(Config.KAFKA_AUTO_OFFSET_RESET, resetStrategy);
+    props.setProperty("auto.offset.reset", resetStrategy);
     props.setProperty(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, "false");
     props.setProperty("hoodie.deltastreamer.kafka.source.maxEvents",
         maxEventsToReadFromKafkaSource != null ? String.valueOf(maxEventsToReadFromKafkaSource) :
-            String.valueOf(Config.maxEventsFromKafkaSource));
+            String.valueOf(Config.MAX_EVENTS_FROM_KAFKA_SOURCE_PROP.defaultValue()));
     props.setProperty(ConsumerConfig.GROUP_ID_CONFIG, UUID.randomUUID().toString());
     return props;
   }
@@ -193,7 +193,7 @@ public class TestKafkaSource extends UtilitiesTestBase {
 
     Source jsonSource = new JsonKafkaSource(props, jsc, sparkSession, schemaProvider, metrics);
     SourceFormatAdapter kafkaSource = new SourceFormatAdapter(jsonSource);
-    Config.maxEventsFromKafkaSource = 500;
+    //props.setProperty("hoodie.deltastreamer.kafka.source.maxEvents", "500");
 
     /*
     1. Extract without any checkpoint => get all the data, respecting default upper cap since both sourceLimit and
@@ -208,9 +208,6 @@ public class TestKafkaSource extends UtilitiesTestBase {
     InputBatch<Dataset<Row>> fetch2 =
         kafkaSource.fetchNewDataInRowFormat(Option.of(fetch1.getCheckpointForNextBatch()), 1500);
     assertEquals(1000, fetch2.getBatch().get().count());
-
-    //reset the value back since it is a static variable
-    Config.maxEventsFromKafkaSource = Config.DEFAULT_MAX_EVENTS_FROM_KAFKA_SOURCE;
   }
 
   @Test
@@ -222,7 +219,7 @@ public class TestKafkaSource extends UtilitiesTestBase {
 
     Source jsonSource = new JsonKafkaSource(props, jsc, sparkSession, schemaProvider, metrics);
     SourceFormatAdapter kafkaSource = new SourceFormatAdapter(jsonSource);
-    Config.maxEventsFromKafkaSource = 500;
+    props.setProperty("hoodie.deltastreamer.kafka.source.maxEvents", "500");
 
     /*
      1. maxEventsFromKafkaSourceProp set to more than generated insert records
@@ -240,9 +237,6 @@ public class TestKafkaSource extends UtilitiesTestBase {
     InputBatch<Dataset<Row>> fetch2 =
             kafkaSource.fetchNewDataInRowFormat(Option.of(fetch1.getCheckpointForNextBatch()), 300);
     assertEquals(300, fetch2.getBatch().get().count());
-
-    //reset the value back since it is a static variable
-    Config.maxEventsFromKafkaSource = Config.DEFAULT_MAX_EVENTS_FROM_KAFKA_SOURCE;
   }
 
   @Test
@@ -300,7 +294,7 @@ public class TestKafkaSource extends UtilitiesTestBase {
 
     HoodieTestDataGenerator dataGenerator = new HoodieTestDataGenerator();
     TypedProperties props = createPropsForJsonSource(null, "earliest");
-    props.put(ENABLE_KAFKA_COMMIT_OFFSET, "true");
+    props.put(ENABLE_KAFKA_COMMIT_OFFSET.key(), "true");
     Source jsonSource = new JsonKafkaSource(props, jsc, sparkSession, schemaProvider, metrics);
     SourceFormatAdapter kafkaSource = new SourceFormatAdapter(jsonSource);
 

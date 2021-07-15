@@ -23,7 +23,6 @@ import org.apache.hudi.common.testutils.HoodieTestDataGenerator;
 import org.apache.hudi.common.util.Option;
 import org.apache.hudi.exception.HoodieNotSupportedException;
 import org.apache.hudi.utilities.deltastreamer.HoodieDeltaStreamerMetrics;
-import org.apache.hudi.utilities.sources.helpers.KafkaOffsetGen.Config;
 import org.apache.hudi.utilities.testutils.UtilitiesTestBase.Helpers;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
@@ -64,7 +63,7 @@ public class TestKafkaOffsetGen {
 
   private TypedProperties getConsumerConfigs(String autoOffsetReset) {
     TypedProperties props = new TypedProperties();
-    props.put(Config.KAFKA_AUTO_OFFSET_RESET, autoOffsetReset);
+    props.put("auto.offset.reset", autoOffsetReset);
     props.put("hoodie.deltastreamer.source.kafka.topic", TEST_TOPIC_NAME);
     props.setProperty("bootstrap.servers", testUtils.brokerAddress());
     props.setProperty("key.deserializer", StringDeserializer.class.getName());
