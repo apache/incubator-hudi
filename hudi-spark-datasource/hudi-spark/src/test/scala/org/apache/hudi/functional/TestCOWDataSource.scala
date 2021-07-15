@@ -566,7 +566,7 @@ class TestCOWDataSource extends HoodieClientTestBase {
       fail("should fail when invalid PartitionKeyType is provided!")
     } catch {
       case e: Exception =>
-        assertTrue(e.getMessage.contains("No enum constant org.apache.hudi.keygen.CustomAvroKeyGenerator.PartitionKeyType.DUMMY"))
+        assertTrue(e.getCause.getMessage.contains("No enum constant org.apache.hudi.keygen.CustomAvroKeyGenerator.PartitionKeyType.DUMMY"))
     }
   }
 
@@ -762,7 +762,6 @@ class TestCOWDataSource extends HoodieClientTestBase {
     }
   }
 
-
   @Test def testSchemaNotEqualData(): Unit = {
     val  opts = commonOpts ++ Map("hoodie.avro.schema.validate" -> "true")
     val schema1 = StructType(StructField("_row_key", StringType, true) :: StructField("name", StringType, true)::
@@ -777,11 +776,23 @@ class TestCOWDataSource extends HoodieClientTestBase {
       .options(opts)
       .mode(SaveMode.Append)
       .save(basePath)
-
     val recordsReadDF = spark.read.format("org.apache.hudi")
       .load(basePath + "/*/*")
 
     val resultSchema = new StructType(recordsReadDF.schema.filter(p=> !p.name.startsWith("_hoodie")).toArray)
     assertEquals(resultSchema, schema1)
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = Array(true, false))
+  def testWithEmptyInput(allowEmptyCommit: Boolean): Unit = {
+    val inputDF1 = spark.read.json(spark.sparkContext.parallelize(Seq.empty[String], 1))
+    inputDF1.write.format("org.apache.hudi")
+      .options(commonOpts)
+      .option(DataSourceWriteOptions.OPERATION_OPT_KEY.key(), DataSourceWriteOptions.INSERT_OPERATION_OPT_VAL)
+      .option(HoodieWriteConfig.ALLOW_EMPTY_COMMIT.key(), allowEmptyCommit.toString)
+      .mode(SaveMode.Overwrite)
+      .save(basePath)
+    assertEquals(allowEmptyCommit, HoodieDataSourceHelpers.hasNewCommits(fs, basePath, "000"))
   }
 }
