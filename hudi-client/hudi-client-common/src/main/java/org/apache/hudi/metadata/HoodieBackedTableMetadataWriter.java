@@ -38,6 +38,7 @@ import org.apache.hudi.common.model.HoodieTableType;
 import org.apache.hudi.common.model.HoodieWriteStat;
 import org.apache.hudi.common.model.WriteConcurrencyMode;
 import org.apache.hudi.common.table.HoodieTableMetaClient;
+import org.apache.hudi.common.table.timeline.HoodieActiveTimeline;
 import org.apache.hudi.common.table.timeline.HoodieInstant;
 import org.apache.hudi.common.table.timeline.HoodieTimeline;
 import org.apache.hudi.common.table.timeline.versioning.TimelineLayoutVersion;
@@ -137,6 +138,14 @@ public abstract class HoodieBackedTableMetadataWriter implements HoodieTableMeta
   private HoodieWriteConfig createMetadataWriteConfig(HoodieWriteConfig writeConfig) {
     int parallelism = writeConfig.getMetadataInsertParallelism();
 
+    // The metadata table timeline should always encompass the dataset timeline so that syncing of manual rollbacks can
+    // always check whether the rolled-back-instant was ever synced to the metadata table. Since all actions on the
+    // dataset always lead to a delta-commit on the Metadata Table, we need to preserve enough deltacommits that can
+    // cover total number of all the non-archived actions on the dataset.
+    int multiplier = HoodieTimeline.VALID_ACTIONS_IN_TIMELINE.length;
+    int minCommitsToKeep = Math.max(writeConfig.getMetadataMinCommitsToKeep(), multiplier * writeConfig.getMinCommitsToKeep());
+    int maxCommitsToKeep = Math.max(writeConfig.getMetadataMaxCommitsToKeep(), multiplier * writeConfig.getMaxCommitsToKeep());
+
     // Create the write config for the metadata table by borrowing options from the main write config.
     HoodieWriteConfig.Builder builder = HoodieWriteConfig.newBuilder()
         .withTimelineLayoutVersion(TimelineLayoutVersion.CURR_VERSION)
@@ -162,7 +171,7 @@ public abstract class HoodieBackedTableMetadataWriter implements HoodieTableMeta
             .withCleanerPolicy(HoodieCleaningPolicy.KEEP_LATEST_COMMITS)
             .withFailedWritesCleaningPolicy(HoodieFailedWritesCleaningPolicy.EAGER)
             .retainCommits(writeConfig.getMetadataCleanerCommitsRetained())
-            .archiveCommitsWith(writeConfig.getMetadataMinCommitsToKeep(), writeConfig.getMetadataMaxCommitsToKeep())
+            .archiveCommitsWith(minCommitsToKeep, maxCommitsToKeep)
             // we will trigger compaction manually, to control the instant times
             .withInlineCompaction(false)
             .withMaxNumDeltaCommitsBeforeCompaction(writeConfig.getMetadataCompactDeltaCommitMax()).build())
@@ -415,7 +424,8 @@ public abstract class HoodieBackedTableMetadataWriter implements HoodieTableMeta
       for (HoodieInstant instant : instantsToSync) {
         LOG.info("Syncing instant " + instant + " to metadata table");
 
-        Option<List<HoodieRecord>> records = HoodieTableMetadataUtil.convertInstantToMetaRecords(datasetMetaClient, instant, getLatestSyncedInstantTime());
+        Option<List<HoodieRecord>> records = HoodieTableMetadataUtil.convertInstantToMetaRecords(datasetMetaClient,
+            metaClient.getActiveTimeline(), instant, getLatestSyncedInstantTime());
         if (records.isPresent()) {
           commit(records.get(), MetadataPartitionType.FILES.partitionPath(), instant.getTimestamp());
         }
@@ -477,7 +487,8 @@ public abstract class HoodieBackedTableMetadataWriter implements HoodieTableMeta
   @Override
   public void update(HoodieRestoreMetadata restoreMetadata, String instantTime) {
     if (enabled) {
-      List<HoodieRecord> records = HoodieTableMetadataUtil.convertMetadataToRecords(restoreMetadata, instantTime, metadata.getSyncedInstantTime());
+      List<HoodieRecord> records = HoodieTableMetadataUtil.convertMetadataToRecords(metaClient.getActiveTimeline(),
+          restoreMetadata, instantTime, metadata.getSyncedInstantTime());
       commit(records, MetadataPartitionType.FILES.partitionPath(), instantTime);
     }
   }
@@ -491,7 +502,8 @@ public abstract class HoodieBackedTableMetadataWriter implements HoodieTableMeta
   @Override
   public void update(HoodieRollbackMetadata rollbackMetadata, String instantTime) {
     if (enabled) {
-      List<HoodieRecord> records = HoodieTableMetadataUtil.convertMetadataToRecords(rollbackMetadata, instantTime, metadata.getSyncedInstantTime());
+      List<HoodieRecord> records = HoodieTableMetadataUtil.convertMetadataToRecords(metaClient.getActiveTimeline(),
+          rollbackMetadata, instantTime, metadata.getSyncedInstantTime());
       commit(records, MetadataPartitionType.FILES.partitionPath(), instantTime);
     }
   }
@@ -501,6 +513,20 @@ public abstract class HoodieBackedTableMetadataWriter implements HoodieTableMeta
     if (metadata != null) {
       metadata.close();
     }
+  }
+
+  /**
+   * Return the timestamp of the latest synced instant.
+   */
+  @Override
+  public Option<String> getLatestSyncedInstantTime() {
+    if (!enabled) {
+      return Option.empty();
+    }
+
+    HoodieActiveTimeline timeline = metaClient.reloadActiveTimeline();
+    return timeline.getDeltaCommitTimeline().filterCompletedInstants()
+        .lastInstant().map(HoodieInstant::getTimestamp);
   }
 
   /**

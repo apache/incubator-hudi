@@ -33,7 +33,7 @@ import org.apache.hudi.common.util.CleanerUtils;
 import org.apache.hudi.common.util.Option;
 import org.apache.hudi.common.util.ValidationUtils;
 import org.apache.hudi.exception.HoodieException;
-
+import org.apache.hudi.exception.HoodieMetadataException;
 import org.apache.hadoop.fs.Path;
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
@@ -61,11 +61,13 @@ public class HoodieTableMetadataUtil {
    * Converts a timeline instant to metadata table records.
    *
    * @param datasetMetaClient The meta client associated with the timeline instant
+   * @param metadataTableTimeline Current timeline of the Metadata Table
    * @param instant to fetch and convert to metadata table records
    * @return a list of metadata table records
    * @throws IOException
    */
-  public static Option<List<HoodieRecord>> convertInstantToMetaRecords(HoodieTableMetaClient datasetMetaClient, HoodieInstant instant, Option<String> lastSyncTs) throws IOException {
+  public static Option<List<HoodieRecord>> convertInstantToMetaRecords(HoodieTableMetaClient datasetMetaClient,
+      HoodieTimeline metadataTableTimeline, HoodieInstant instant, Option<String> lastSyncTs) throws IOException {
     HoodieTimeline timeline = datasetMetaClient.getActiveTimeline();
     Option<List<HoodieRecord>> records = Option.empty();
     ValidationUtils.checkArgument(instant.isCompleted(), "Only completed instants can be synced.");
@@ -85,12 +87,12 @@ public class HoodieTableMetadataUtil {
       case HoodieTimeline.ROLLBACK_ACTION:
         HoodieRollbackMetadata rollbackMetadata = TimelineMetadataUtils.deserializeHoodieRollbackMetadata(
             timeline.getInstantDetails(instant).get());
-        records = Option.of(convertMetadataToRecords(rollbackMetadata, instant.getTimestamp(), lastSyncTs));
+        records = Option.of(convertMetadataToRecords(metadataTableTimeline, rollbackMetadata, instant.getTimestamp(), lastSyncTs));
         break;
       case HoodieTimeline.RESTORE_ACTION:
         HoodieRestoreMetadata restoreMetadata = TimelineMetadataUtils.deserializeHoodieRestoreMetadata(
             timeline.getInstantDetails(instant).get());
-        records = Option.of(convertMetadataToRecords(restoreMetadata, instant.getTimestamp(), lastSyncTs));
+        records = Option.of(convertMetadataToRecords(metadataTableTimeline, restoreMetadata, instant.getTimestamp(), lastSyncTs));
         break;
       case HoodieTimeline.SAVEPOINT_ACTION:
         // Nothing to be done here
@@ -213,21 +215,22 @@ public class HoodieTableMetadataUtil {
    * @param instantTime
    * @return a list of metadata table records
    */
-  public static List<HoodieRecord> convertMetadataToRecords(HoodieRestoreMetadata restoreMetadata, String instantTime, Option<String> lastSyncTs) {
+  public static List<HoodieRecord> convertMetadataToRecords(HoodieTimeline metadataTableTimeline,
+      HoodieRestoreMetadata restoreMetadata, String instantTime, Option<String> lastSyncTs) {
     Map<String, Map<String, Long>> partitionToAppendedFiles = new HashMap<>();
     Map<String, List<String>> partitionToDeletedFiles = new HashMap<>();
     restoreMetadata.getHoodieRestoreMetadata().values().forEach(rms -> {
-      rms.forEach(rm -> processRollbackMetadata(rm, partitionToDeletedFiles, partitionToAppendedFiles, lastSyncTs));
+      rms.forEach(rm -> processRollbackMetadata(metadataTableTimeline, rm, partitionToDeletedFiles, partitionToAppendedFiles, lastSyncTs));
     });
 
     return convertFilesToRecords(partitionToDeletedFiles, partitionToAppendedFiles, instantTime, "Restore");
   }
 
-  public static List<HoodieRecord> convertMetadataToRecords(HoodieRollbackMetadata rollbackMetadata, String instantTime, Option<String> lastSyncTs) {
-
+  public static List<HoodieRecord> convertMetadataToRecords(HoodieTimeline metadataTableTimeline,
+      HoodieRollbackMetadata rollbackMetadata, String instantTime, Option<String> lastSyncTs) {
     Map<String, Map<String, Long>> partitionToAppendedFiles = new HashMap<>();
     Map<String, List<String>> partitionToDeletedFiles = new HashMap<>();
-    processRollbackMetadata(rollbackMetadata, partitionToDeletedFiles, partitionToAppendedFiles, lastSyncTs);
+    processRollbackMetadata(metadataTableTimeline, rollbackMetadata, partitionToDeletedFiles, partitionToAppendedFiles, lastSyncTs);
     return convertFilesToRecords(partitionToDeletedFiles, partitionToAppendedFiles, instantTime, "Rollback");
   }
 
@@ -236,28 +239,48 @@ public class HoodieTableMetadataUtil {
    *
    * During a rollback files may be deleted (COW, MOR) or rollback blocks be appended (MOR only) to files. This
    * function will extract this change file for each partition.
-   *
+   * @param metadataTableTimeline Current timeline of the Metdata Table
    * @param rollbackMetadata {@code HoodieRollbackMetadata}
    * @param partitionToDeletedFiles The {@code Map} to fill with files deleted per partition.
    * @param partitionToAppendedFiles The {@code Map} to fill with files appended per partition and their sizes.
    */
-  private static void processRollbackMetadata(HoodieRollbackMetadata rollbackMetadata,
+  private static void processRollbackMetadata(HoodieTimeline metadataTableTimeline, HoodieRollbackMetadata rollbackMetadata,
                                               Map<String, List<String>> partitionToDeletedFiles,
                                               Map<String, Map<String, Long>> partitionToAppendedFiles,
                                               Option<String> lastSyncTs) {
 
     rollbackMetadata.getPartitionMetadata().values().forEach(pm -> {
+      final String instantToRollback = rollbackMetadata.getCommitsRollback().get(0);
       // Has this rollback produced new files?
       boolean hasRollbackLogFiles = pm.getRollbackLogFiles() != null && !pm.getRollbackLogFiles().isEmpty();
       boolean hasNonZeroRollbackLogFiles = hasRollbackLogFiles && pm.getRollbackLogFiles().values().stream().mapToLong(Long::longValue).sum() > 0;
-      // If commit being rolled back has not been synced to metadata table yet then there is no need to update metadata
+
+      // If instant-to-rollback has not been synced to metadata table yet then there is no need to update metadata
+      // This can happen in two cases:
+      //  Case 1: Metadata Table timeline is behind the instant-to-rollback.
       boolean shouldSkip = lastSyncTs.isPresent()
-          && HoodieTimeline.compareTimestamps(rollbackMetadata.getCommitsRollback().get(0), HoodieTimeline.GREATER_THAN, lastSyncTs.get());
+          && HoodieTimeline.compareTimestamps(instantToRollback, HoodieTimeline.GREATER_THAN, lastSyncTs.get());
 
       if (!hasNonZeroRollbackLogFiles && shouldSkip) {
         LOG.info(String.format("Skipping syncing of rollbackMetadata at %s, given metadata table is already synced upto to %s",
-            rollbackMetadata.getCommitsRollback().get(0), lastSyncTs.get()));
+            instantToRollback, lastSyncTs.get()));
         return;
+      }
+
+      // Case 2: The instant-to-rollback was never committed to Metadata Table. This can happen if the instant-to-rollback
+      // was a failed commit (never completed) as only completed instants are synced to Metadata Table.
+      HoodieInstant syncedInstant = new HoodieInstant(false, HoodieTimeline.DELTA_COMMIT_ACTION, instantToRollback);
+      shouldSkip = !metadataTableTimeline.containsInstant(syncedInstant);
+      if (!hasNonZeroRollbackLogFiles && shouldSkip) {
+        LOG.info(String.format("Skipping syncing of rollbackMetadata at %s, since this instant was never committed to Metadata Table",
+            instantToRollback));
+        return;
+      }
+
+      // The above check only succeeds if the required Metadata Table instants were not archived
+      if (metadataTableTimeline.isBeforeTimelineStarts(syncedInstant.getTimestamp())) {
+        throw new HoodieMetadataException(String.format("The instant %s required to sync rollback of %s has been archived",
+            syncedInstant, instantToRollback));
       }
 
       final String partition = pm.getPartitionPath();

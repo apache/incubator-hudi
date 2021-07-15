@@ -36,7 +36,7 @@ import org.apache.hudi.exception.HoodieException;
  */
 public class HoodieMetadataFileSystemView extends HoodieTableFileSystemView {
 
-  private final HoodieTableMetadata tableMetadata;
+  private HoodieTableMetadata tableMetadata;
 
   public HoodieMetadataFileSystemView(HoodieTableMetaClient metaClient,
                                       HoodieTimeline visibleActiveTimeline,
@@ -72,5 +72,17 @@ public class HoodieMetadataFileSystemView extends HoodieTableFileSystemView {
     } catch (Exception e) {
       throw new HoodieException("Error closing metadata file system view.", e);
     }
+  }
+
+  @Override
+  public void sync() {
+    // Sync the tableMetadata first as super.sync() may call listPartition
+    if (tableMetadata != null) {
+      BaseTableMetadata baseMetadata = (BaseTableMetadata)tableMetadata;
+      tableMetadata = HoodieTableMetadata.create(baseMetadata.getEngineContext(), baseMetadata.getMetadataConfig(),
+          metaClient.getBasePath(), FileSystemViewStorageConfig.FILESYSTEM_VIEW_SPILLABLE_DIR.defaultValue());
+    }
+
+    super.sync();
   }
 }

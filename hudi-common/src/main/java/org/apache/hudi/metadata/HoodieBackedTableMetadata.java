@@ -29,6 +29,7 @@ import org.apache.hudi.common.model.HoodieLogFile;
 import org.apache.hudi.common.model.HoodieRecord;
 import org.apache.hudi.common.model.HoodieRecordPayload;
 import org.apache.hudi.common.table.HoodieTableMetaClient;
+import org.apache.hudi.common.table.timeline.HoodieActiveTimeline;
 import org.apache.hudi.common.table.timeline.HoodieDefaultTimeline;
 import org.apache.hudi.common.table.timeline.HoodieInstant;
 import org.apache.hudi.common.table.view.HoodieTableFileSystemView;
@@ -107,6 +108,10 @@ public class HoodieBackedTableMetadata extends BaseTableMetadata {
         LOG.error("Failed to initialize metadata table at path " + metadataBasePath, e);
         this.enabled = false;
         this.metaClient = null;
+      }
+
+      if (enabled) {
+        openTimelineScanner(metaClient.getActiveTimeline());
       }
     }
   }
@@ -258,6 +263,20 @@ public class HoodieBackedTableMetadata extends BaseTableMetadata {
     close(baseFileReader, logRecordScanner);
     baseFileReader = null;
     logRecordScanner = null;
+  }
+
+  /**
+   * Return the timestamp of the latest synced instant.
+   */
+  @Override
+  public Option<String> getSyncedInstantTime() {
+    if (!enabled) {
+      return Option.empty();
+    }
+
+    HoodieActiveTimeline timeline = metaClient.reloadActiveTimeline();
+    return timeline.getDeltaCommitTimeline().filterCompletedInstants()
+        .lastInstant().map(HoodieInstant::getTimestamp);
   }
 
   /**

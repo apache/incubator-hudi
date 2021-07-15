@@ -62,7 +62,6 @@ public abstract class BaseTableMetadata implements HoodieTableMetadata {
   protected final HoodieMetadataConfig metadataConfig;
   // Directory used for Spillable Map when merging records
   protected final String spillableMapDirectory;
-  private String syncedInstantTime;
 
   protected boolean enabled;
   private TimelineMergedTableMetadata timelineMergedMetadata;
@@ -81,9 +80,6 @@ public abstract class BaseTableMetadata implements HoodieTableMetadata {
       this.metrics = Option.of(new HoodieMetadataMetrics(Registry.getRegistry("HoodieMetadata")));
     } else {
       this.metrics = Option.empty();
-    }
-    if (enabled) {
-      openTimelineScanner();
     }
   }
 
@@ -276,27 +272,12 @@ public abstract class BaseTableMetadata implements HoodieTableMetadata {
 
   protected abstract Option<HoodieRecord<HoodieMetadataPayload>> getRecordByKeyFromMetadata(String key);
 
-  private void openTimelineScanner() {
+  protected void openTimelineScanner(HoodieTimeline metadataTableTimeline) {
     if (timelineMergedMetadata == null) {
       List<HoodieInstant> unSyncedInstants = findInstantsToSyncForReader();
       timelineMergedMetadata =
-          new TimelineMergedTableMetadata(datasetMetaClient, unSyncedInstants, getSyncedInstantTime(), null);
-
-      syncedInstantTime = unSyncedInstants.isEmpty() ? getLatestDatasetInstantTime()
-          : unSyncedInstants.get(unSyncedInstants.size() - 1).getTimestamp();
+          new TimelineMergedTableMetadata(datasetMetaClient, metadataTableTimeline, unSyncedInstants, getSyncedInstantTime(), null);
     }
-  }
-
-  /**
-   * Return the timestamp of the latest synced instant.
-   */
-  @Override
-  public Option<String> getSyncedInstantTime() {
-    if (!enabled) {
-      return Option.empty();
-    }
-
-    return Option.ofNullable(syncedInstantTime);
   }
 
   /**
@@ -322,8 +303,22 @@ public abstract class BaseTableMetadata implements HoodieTableMetadata {
     return engineContext != null ? engineContext : new HoodieLocalEngineContext(hadoopConf.get());
   }
 
+  public HoodieMetadataConfig getMetadataConfig() {
+    return metadataConfig;
+  }
+
   protected String getLatestDatasetInstantTime() {
     return datasetMetaClient.getActiveTimeline().filterCompletedInstants().lastInstant()
         .map(HoodieInstant::getTimestamp).orElse(SOLO_COMMIT_TIMESTAMP);
   }
+
+  @Override
+  public Option<String> getSyncedInstantTimeForReader() {
+    if (timelineMergedMetadata == null) {
+      return Option.empty();
+    }
+
+    return timelineMergedMetadata.getSyncedInstantTime();
+  }
+
 }

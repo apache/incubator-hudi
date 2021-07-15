@@ -23,6 +23,7 @@ import org.apache.hudi.common.model.HoodieRecord;
 import org.apache.hudi.common.model.HoodieRecordPayload;
 import org.apache.hudi.common.table.HoodieTableMetaClient;
 import org.apache.hudi.common.table.timeline.HoodieInstant;
+import org.apache.hudi.common.table.timeline.HoodieTimeline;
 import org.apache.hudi.common.util.Option;
 import org.apache.hudi.exception.HoodieException;
 import org.apache.log4j.LogManager;
@@ -49,16 +50,18 @@ public class TimelineMergedTableMetadata implements Serializable {
   private List<HoodieInstant> instants;
   private Option<String> lastSyncTs;
   private Set<String> mergeKeyFilter;
+  private HoodieTimeline metadataTableTimeline;
 
   // keep it a simple hash map, so it can be easily passed onto the executors, once merged.
   protected final Map<String, HoodieRecord<? extends HoodieRecordPayload>> timelineMergedRecords;
 
-  public TimelineMergedTableMetadata(HoodieTableMetaClient metaClient, List<HoodieInstant> instants,
-                                     Option<String> lastSyncTs, Set<String> mergeKeyFilter) {
+  public TimelineMergedTableMetadata(HoodieTableMetaClient metaClient, HoodieTimeline metadataTableTimeline,
+                                     List<HoodieInstant> instants, Option<String> lastSyncTs, Set<String> mergeKeyFilter) {
     this.metaClient = metaClient;
     this.instants = instants;
     this.lastSyncTs = lastSyncTs;
     this.mergeKeyFilter = mergeKeyFilter != null ? mergeKeyFilter : Collections.emptySet();
+    this.metadataTableTimeline = metadataTableTimeline;
     this.timelineMergedRecords = new HashMap<>();
 
     scan();
@@ -73,7 +76,8 @@ public class TimelineMergedTableMetadata implements Serializable {
   private void scan() {
     for (HoodieInstant instant : instants) {
       try {
-        Option<List<HoodieRecord>> records = HoodieTableMetadataUtil.convertInstantToMetaRecords(metaClient, instant, lastSyncTs);
+        Option<List<HoodieRecord>> records = HoodieTableMetadataUtil.convertInstantToMetaRecords(metaClient,
+            metadataTableTimeline, instant, lastSyncTs);
         if (records.isPresent()) {
           records.get().forEach(record -> processNextRecord(record));
         }
@@ -111,5 +115,16 @@ public class TimelineMergedTableMetadata implements Serializable {
    */
   public Option<HoodieRecord<HoodieMetadataPayload>> getRecordByKey(String key) {
     return Option.ofNullable((HoodieRecord) timelineMergedRecords.get(key));
+  }
+
+  /**
+   * Returns the timestamp of the latest synced instant.
+   */
+  public Option<String> getSyncedInstantTime() {
+    if (instants.isEmpty()) {
+      return Option.empty();
+    }
+
+    return Option.of(instants.get(instants.size() - 1).getTimestamp());
   }
 }

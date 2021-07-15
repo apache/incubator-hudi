@@ -111,6 +111,11 @@ public class FileSystemBackedTableMetadata implements HoodieTableMetadata {
   }
 
   @Override
+  public Option<String> getSyncedInstantTimeForReader() {
+    throw new UnsupportedOperationException();
+  }
+
+  @Override
   public boolean isInSync() {
     return true;
   }
