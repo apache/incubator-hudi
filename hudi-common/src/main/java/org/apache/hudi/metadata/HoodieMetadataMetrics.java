@@ -133,11 +133,11 @@ public class HoodieMetadataMetrics implements Serializable {
       return;
     }
 
-    // Update sizes and count for metadata table's data files
-    metricsRegistry.add("basefile.size", totalBaseFileSizeInBytes);
-    metricsRegistry.add("logfile.size", totalLogFileSizeInBytes);
-    metricsRegistry.add("basefile.count", baseFileCount);
-    metricsRegistry.add("logfile.count", logFileCount);
+    // Set new size and count for metadata table's data files
+    metricsRegistry.set("basefile.size", totalBaseFileSizeInBytes);
+    metricsRegistry.set("logfile.size", totalLogFileSizeInBytes);
+    metricsRegistry.set("basefile.count", baseFileCount);
+    metricsRegistry.set("logfile.count", logFileCount);
 
     LOG.info(String.format("Updating metadata size metrics (basefile.size=%d, logfile.size=%d, basefile.count=%d, "
         + "logfile.count=%d)", totalBaseFileSizeInBytes, totalLogFileSizeInBytes, baseFileCount, logFileCount));

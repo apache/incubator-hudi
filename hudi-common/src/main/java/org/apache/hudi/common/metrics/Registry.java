@@ -101,6 +101,17 @@ public interface Registry extends Serializable {
   void add(String name, long value);
 
   /**
+   * Set the value to the metric.
+   *
+   * If the metric does not exist, it is added. If the metrics already exists, its value is replaced with the
+   * provided value.
+   *
+   * @param name Name of the metric.
+   * @param value The value to set for the metrics.
+   */
+  void set(String name, long value);
+
+  /**
    * Get all Counter type metrics.
    */
   default Map<String, Long> getAllCounts() {

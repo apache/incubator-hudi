@@ -60,6 +60,11 @@ public class DistributedRegistry extends AccumulatorV2<Map<String, Long>, Map<St
     counters.merge(name,  value, (oldValue, newValue) -> oldValue + newValue);
   }
 
+  @Override
+  public void set(String name, long value) {
+    counters.merge(name,  value, (oldValue, newValue) -> newValue);
+  }
+
   /**
    * Get all Counter type metrics.
    */

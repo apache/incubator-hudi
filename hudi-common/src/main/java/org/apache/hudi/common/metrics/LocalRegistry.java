@@ -48,6 +48,11 @@ public class LocalRegistry implements Registry {
     getCounter(name).add(value);
   }
 
+  @Override
+  public void set(String name, long value) {
+    getCounter(name).set(value);
+  }
+
   /**
    * Get all Counter type metrics.
    */
