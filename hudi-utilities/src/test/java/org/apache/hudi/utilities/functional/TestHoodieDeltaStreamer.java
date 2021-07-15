@@ -1695,6 +1695,30 @@ public class TestHoodieDeltaStreamer extends UtilitiesTestBase {
     }
   }
 
+  @Test
+  public void testInsertOverwrite() throws Exception {
+    String tableBasePath = dfsBasePath + "/test_table";
+
+    // Initial insert overwrite
+    HoodieDeltaStreamer.Config cfg = TestHelpers.makeConfig(tableBasePath, WriteOperationType.INSERT_OVERWRITE);
+    new HoodieDeltaStreamer(cfg, jsc).sync();
+    TestHelpers.assertRecordCount(1000, tableBasePath + "/*/*.parquet", sqlContext);
+    TestHelpers.assertDistanceCount(1000, tableBasePath + "/*/*.parquet", sqlContext);
+    TestHelpers.assertCommitMetadata("00000", tableBasePath, dfs, 1);
+  }
+
+  @Test
+  public void testInsertOverwriteTable() throws Exception {
+    String tableBasePath = dfsBasePath + "/test_table";
+
+    // Initial insert overwrite table
+    HoodieDeltaStreamer.Config cfg = TestHelpers.makeConfig(tableBasePath, WriteOperationType.INSERT_OVERWRITE_TABLE);
+    new HoodieDeltaStreamer(cfg, jsc).sync();
+    TestHelpers.assertRecordCount(1000, tableBasePath + "/*/*.parquet", sqlContext);
+    TestHelpers.assertDistanceCount(1000, tableBasePath + "/*/*.parquet", sqlContext);
+    TestHelpers.assertCommitMetadata("00000", tableBasePath, dfs, 1);
+  }
+
   /**
    * UDF to calculate Haversine distance.
    */

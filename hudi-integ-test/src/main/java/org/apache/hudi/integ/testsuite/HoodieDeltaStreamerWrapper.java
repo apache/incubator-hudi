@@ -53,6 +53,16 @@ public class HoodieDeltaStreamerWrapper extends HoodieDeltaStreamer {
     return upsert(WriteOperationType.BULK_INSERT);
   }
 
+  public JavaRDD<WriteStatus> insertOverwrite() throws
+          Exception {
+    return upsert(WriteOperationType.INSERT_OVERWRITE);
+  }
+
+  public JavaRDD<WriteStatus> insertOverwriteTable() throws
+          Exception {
+    return upsert(WriteOperationType.INSERT_OVERWRITE_TABLE);
+  }
+
   public void scheduleCompact() throws Exception {
     // Since we don't support scheduleCompact() operation in delta-streamer, assume upsert without any data that will
     // trigger scheduling compaction
