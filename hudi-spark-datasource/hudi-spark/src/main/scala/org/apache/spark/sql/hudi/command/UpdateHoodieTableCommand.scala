@@ -37,10 +37,7 @@ case class UpdateHoodieTableCommand(updateTable: UpdateTable) extends RunnableCo
   with SparkAdapterSupport {
 
   private val table = updateTable.table
-  private val tableId = table match {
-    case SubqueryAlias(name, _) => sparkAdapter.toTableIdentify(name)
-    case _ => throw new IllegalArgumentException(s"Illegal table: $table")
-  }
+  private val tableId = getTableIdentify(table)
 
   override def run(sparkSession: SparkSession): Seq[Row] = {
     logInfo(s"start execute update command for $tableId")

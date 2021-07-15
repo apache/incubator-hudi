@@ -15,33 +15,33 @@
  * limitations under the License.
  */
 
-package org.apache.spark.sql.hudi.parser
+package org.apache.spark.sql.parser
 
-import org.antlr.v4.runtime._
+import org.antlr.v4.runtime.{CharStream, CharStreams, CodePointCharStream, CommonTokenStream, IntStream}
 import org.antlr.v4.runtime.atn.PredictionMode
 import org.antlr.v4.runtime.misc.{Interval, ParseCancellationException}
-import org.antlr.v4.runtime.tree.TerminalNodeImpl
-import org.apache.hudi.spark.sql.parser.HoodieSqlBaseParser.{NonReservedContext, QuotedIdentifierContext}
-import org.apache.hudi.spark.sql.parser.{HoodieSqlBaseBaseListener, HoodieSqlBaseLexer, HoodieSqlBaseParser}
+import org.apache.hudi.SparkAdapterSupport
+import org.apache.hudi.spark.sql.parser.{HoodieSqlCommonLexer, HoodieSqlCommonParser}
 import org.apache.spark.internal.Logging
-import org.apache.spark.sql.catalyst.expressions._
-import org.apache.spark.sql.catalyst.parser.{ParseErrorListener, ParseException, ParserInterface}
-import org.apache.spark.sql.catalyst.plans.logical._
-import org.apache.spark.sql.catalyst.trees.Origin
-import org.apache.spark.sql.catalyst.{FunctionIdentifier, TableIdentifier}
-import org.apache.spark.sql.types._
 import org.apache.spark.sql.{AnalysisException, SparkSession}
+import org.apache.spark.sql.catalyst.{FunctionIdentifier, TableIdentifier}
+import org.apache.spark.sql.catalyst.expressions.Expression
+import org.apache.spark.sql.catalyst.parser.{ParseErrorListener, ParseException, ParserInterface}
+import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
+import org.apache.spark.sql.catalyst.trees.Origin
+import org.apache.spark.sql.types.{DataType, StructType}
 
-class HoodieSqlParser(session: SparkSession, delegate: ParserInterface)
-  extends ParserInterface with Logging {
+class HoodieCommonSqlParser(session: SparkSession, delegate: ParserInterface)
+  extends ParserInterface with Logging with SparkAdapterSupport {
 
-  private lazy val conf = session.sqlContext.conf
-  private lazy val builder = new HoodieSqlAstBuilder(conf, delegate)
+  private lazy val builder = new HoodieSqlCommonAstBuilder(session, delegate)
+  private lazy val sparkExtendedParser = sparkAdapter.createExtendedSparkParser
+    .map(_(session, delegate)).getOrElse(delegate)
 
   override def parsePlan(sqlText: String): LogicalPlan = parse(sqlText) { parser =>
     builder.visit(parser.singleStatement()) match {
       case plan: LogicalPlan => plan
-      case _=> delegate.parsePlan(sqlText)
+      case _=> sparkExtendedParser.parsePlan(sqlText)
     }
   }
 
@@ -57,20 +57,25 @@ class HoodieSqlParser(session: SparkSession, delegate: ParserInterface)
 
   override def parseDataType(sqlText: String): DataType = delegate.parseDataType(sqlText)
 
-  protected def parse[T](command: String)(toResult: HoodieSqlBaseParser => T): T = {
+  def parseRawDataType(sqlText : String) : DataType = {
+    throw new UnsupportedOperationException(s"Unsupported parseRawDataType method")
+  }
+
+  def parseMultipartIdentifier(sqlText: String): Seq[String] = {
+    throw new UnsupportedOperationException(s"Unsupported parseMultipartIdentifier method")
+  }
+
+  protected def parse[T](command: String)(toResult: HoodieSqlCommonParser => T): T = {
     logDebug(s"Parsing command: $command")
 
-    val lexer = new HoodieSqlBaseLexer(new UpperCaseCharStream(CharStreams.fromString(command)))
+    val lexer = new HoodieSqlCommonLexer(new UpperCaseCharStream(CharStreams.fromString(command)))
     lexer.removeErrorListeners()
     lexer.addErrorListener(ParseErrorListener)
-    lexer.legacy_setops_precedence_enbled = conf.setOpsPrecedenceEnforced
 
     val tokenStream = new CommonTokenStream(lexer)
-    val parser = new HoodieSqlBaseParser(tokenStream)
-    parser.addParseListener(PostProcessor)
+    val parser = new HoodieSqlCommonParser(tokenStream)
     parser.removeErrorListeners()
     parser.addErrorListener(ParseErrorListener)
-    parser.legacy_setops_precedence_enbled = conf.setOpsPrecedenceEnforced
 
     try {
       try {
@@ -102,8 +107,8 @@ class HoodieSqlParser(session: SparkSession, delegate: ParserInterface)
 }
 
 /**
-  * Fork from `org.apache.spark.sql.catalyst.parser.UpperCaseCharStream`.
-  */
+ * Fork from `org.apache.spark.sql.catalyst.parser.UpperCaseCharStream`.
+ */
 class UpperCaseCharStream(wrapped: CodePointCharStream) extends CharStream {
   override def consume(): Unit = wrapped.consume
   override def getSourceName(): String = wrapped.getSourceName
@@ -127,45 +132,9 @@ class UpperCaseCharStream(wrapped: CodePointCharStream) extends CharStream {
   }
   // scalastyle:off
   override def LA(i: Int): Int = {
-  // scalastyle:on
+    // scalastyle:on
     val la = wrapped.LA(i)
     if (la == 0 || la == IntStream.EOF) la
     else Character.toUpperCase(la)
-  }
-}
-
-/**
-  * Fork from `org.apache.spark.sql.catalyst.parser.PostProcessor`.
-  */
-case object PostProcessor extends HoodieSqlBaseBaseListener {
-
-  /** Remove the back ticks from an Identifier. */
-  override def exitQuotedIdentifier(ctx: QuotedIdentifierContext): Unit = {
-    replaceTokenByIdentifier(ctx, 1) { token =>
-      // Remove the double back ticks in the string.
-      token.setText(token.getText.replace("``", "`"))
-      token
-    }
-  }
-
-  /** Treat non-reserved keywords as Identifiers. */
-  override def exitNonReserved(ctx: NonReservedContext): Unit = {
-    replaceTokenByIdentifier(ctx, 0)(identity)
-  }
-
-  private def replaceTokenByIdentifier(
-                                        ctx: ParserRuleContext,
-                                        stripMargins: Int)(
-                                        f: CommonToken => CommonToken = identity): Unit = {
-    val parent = ctx.getParent
-    parent.removeLastChild()
-    val token = ctx.getChild(0).getPayload.asInstanceOf[Token]
-    val newToken = new CommonToken(
-      new org.antlr.v4.runtime.misc.Pair(token.getTokenSource, token.getInputStream),
-      HoodieSqlBaseParser.IDENTIFIER,
-      token.getChannel,
-      token.getStartIndex + stripMargins,
-      token.getStopIndex - stripMargins)
-    parent.addChild(new TerminalNodeImpl(f(newToken)))
   }
 }

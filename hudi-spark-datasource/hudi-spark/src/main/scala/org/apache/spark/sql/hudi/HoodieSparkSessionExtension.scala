@@ -20,6 +20,7 @@ package org.apache.spark.sql.hudi
 import org.apache.hudi.SparkAdapterSupport
 import org.apache.spark.sql.SparkSessionExtensions
 import org.apache.spark.sql.hudi.analysis.HoodieAnalysis
+import org.apache.spark.sql.parser.HoodieCommonSqlParser
 
 /**
  * The Hoodie SparkSessionExtension for extending the syntax and add the rules.
@@ -27,11 +28,9 @@ import org.apache.spark.sql.hudi.analysis.HoodieAnalysis
 class HoodieSparkSessionExtension extends (SparkSessionExtensions => Unit)
   with SparkAdapterSupport{
   override def apply(extensions: SparkSessionExtensions): Unit = {
-    // For spark2, we add a extended sql parser
-    if (sparkAdapter.createExtendedSparkParser.isDefined) {
-      extensions.injectParser { (session, parser) =>
-        sparkAdapter.createExtendedSparkParser.get(session, parser)
-      }
+
+    extensions.injectParser { (session, parser) =>
+      new HoodieCommonSqlParser(session, parser)
     }
 
     HoodieAnalysis.customResolutionRules().foreach { rule =>

@@ -157,6 +157,23 @@
         <groupId>org.jacoco</groupId>
         <artifactId>jacoco-maven-plugin</artifactId>
       </plugin>
+      <plugin>
+        <groupId>org.antlr</groupId>
+        <artifactId>antlr4-maven-plugin</artifactId>
+        <version>4.7</version>
+        <executions>
+          <execution>
+            <goals>
+              <goal>antlr4</goal>
+            </goals>
+          </execution>
+        </executions>
+        <configuration>
+          <visitor>true</visitor>
+          <listener>true</listener>
+          <sourceDirectory>../hudi-spark/src/main/antlr4/</sourceDirectory>
+        </configuration>
+      </plugin>
     </plugins>
   </build>
 

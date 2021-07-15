@@ -34,7 +34,7 @@ import scala.collection.JavaConverters._
  * Here we only do the parser for the extended sql syntax. e.g MergeInto. For
  * other sql syntax we use the delegate sql parser which is the SparkSqlParser.
  */
-class HoodieSqlAstBuilder(conf: SQLConf, delegate: ParserInterface) extends HoodieSqlBaseBaseVisitor[AnyRef] with Logging {
+class HoodieSpark2ExtendedSqlAstBuilder(conf: SQLConf, delegate: ParserInterface) extends HoodieSqlBaseBaseVisitor[AnyRef] with Logging {
 
   import ParserUtils._
 

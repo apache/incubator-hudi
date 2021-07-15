@@ -32,10 +32,7 @@ case class DeleteHoodieTableCommand(deleteTable: DeleteFromTable) extends Runnab
 
   private val table = deleteTable.table
 
-  private val tableId = table match {
-    case SubqueryAlias(name, _) => sparkAdapter.toTableIdentify(name)
-    case _ => throw new IllegalArgumentException(s"Illegal table: $table")
-  }
+  private val tableId = getTableIdentify(table)
 
   override def run(sparkSession: SparkSession): Seq[Row] = {
     logInfo(s"start execute delete command for $tableId")

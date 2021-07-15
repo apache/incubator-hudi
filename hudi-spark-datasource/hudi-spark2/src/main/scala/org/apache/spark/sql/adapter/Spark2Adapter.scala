@@ -29,7 +29,7 @@ import org.apache.spark.sql.catalyst.plans.logical.{InsertIntoTable, Join, Logic
 import org.apache.spark.sql.catalyst.{AliasIdentifier, TableIdentifier}
 import org.apache.spark.sql.execution.datasources.{Spark2ParsePartitionUtil, SparkParsePartitionUtil}
 import org.apache.spark.sql.hudi.SparkAdapter
-import org.apache.spark.sql.hudi.parser.HoodieSqlParser
+import org.apache.spark.sql.hudi.parser.HoodieSpark2ExtendedSqlParser
 import org.apache.spark.sql.internal.SQLConf
 
 /**
@@ -73,7 +73,7 @@ class Spark2Adapter extends SparkAdapter {
 
   override def createExtendedSparkParser: Option[(SparkSession, ParserInterface) => ParserInterface] = {
     Some(
-      (spark: SparkSession, delegate: ParserInterface) => new HoodieSqlParser(spark, delegate)
+      (spark: SparkSession, delegate: ParserInterface) => new HoodieSpark2ExtendedSqlParser(spark, delegate)
     )
   }
 
