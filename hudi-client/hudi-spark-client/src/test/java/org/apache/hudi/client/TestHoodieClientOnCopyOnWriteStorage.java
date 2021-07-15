@@ -24,6 +24,10 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hudi.avro.model.HoodieClusteringPlan;
 import org.apache.hudi.avro.model.HoodieRequestedReplaceMetadata;
 import org.apache.hudi.avro.model.HoodieCleanMetadata;
+import org.apache.hudi.client.validator.SparkPreCommitValidator;
+import org.apache.hudi.client.validator.SqlQueryEqualityPreCommitValidator;
+import org.apache.hudi.client.validator.SqlQuerySingleResultPreCommitValidator;
+import org.apache.hudi.common.engine.HoodieEngineContext;
 import org.apache.hudi.common.fs.ConsistencyGuardConfig;
 import org.apache.hudi.common.fs.FSUtils;
 import org.apache.hudi.common.model.FileSlice;
@@ -33,6 +37,7 @@ import org.apache.hudi.common.model.HoodieFailedWritesCleaningPolicy;
 import org.apache.hudi.common.model.HoodieFileGroupId;
 import org.apache.hudi.common.model.HoodieKey;
 import org.apache.hudi.common.model.HoodieRecord;
+import org.apache.hudi.common.model.HoodieRecordPayload;
 import org.apache.hudi.common.model.HoodieWriteStat;
 import org.apache.hudi.common.model.IOType;
 import org.apache.hudi.common.model.WriteOperationType;
@@ -52,17 +57,21 @@ import org.apache.hudi.common.util.CollectionUtils;
 import org.apache.hudi.common.util.BaseFileUtils;
 import org.apache.hudi.common.util.FileIOUtils;
 import org.apache.hudi.common.util.Option;
+import org.apache.hudi.common.util.StringUtils;
 import org.apache.hudi.common.util.collection.Pair;
 import org.apache.hudi.config.HoodieClusteringConfig;
 import org.apache.hudi.config.HoodieCompactionConfig;
 import org.apache.hudi.config.HoodieIndexConfig;
+import org.apache.hudi.config.HoodiePreCommitValidatorConfig;
 import org.apache.hudi.config.HoodieStorageConfig;
 import org.apache.hudi.config.HoodieWriteConfig;
 import org.apache.hudi.exception.HoodieCommitException;
 import org.apache.hudi.exception.HoodieCorruptedDataException;
 import org.apache.hudi.exception.HoodieIOException;
+import org.apache.hudi.exception.HoodieInsertException;
 import org.apache.hudi.exception.HoodieRollbackException;
 import org.apache.hudi.exception.HoodieUpsertException;
+import org.apache.hudi.exception.HoodieValidationException;
 import org.apache.hudi.index.HoodieIndex;
 import org.apache.hudi.index.HoodieIndex.IndexType;
 import org.apache.hudi.io.HoodieMergeHandle;
@@ -142,6 +151,8 @@ public class TestHoodieClientOnCopyOnWriteStorage extends HoodieClientTestBase {
 
   private HoodieTestTable testTable;
 
+  private static final String COUNT_SQL_QUERY_FOR_VALIDATION = "select count(*) from <TABLE_NAME>";
+
   @BeforeEach
   public void setUpTestTable() {
     testTable = HoodieSparkWriteableTestTable.of(metaClient);
@@ -220,6 +231,52 @@ public class TestHoodieClientOnCopyOnWriteStorage extends HoodieClientTestBase {
       assertTrue(testTable.commitExists(newCommitTime),
           "After explicit commit, commit file should be created");
     }
+  }
+
+  @Test
+  public void testPreCommitValidatorsOnInsert() throws Exception {
+    int numRecords = 200;
+    HoodiePreCommitValidatorConfig validatorConfig = HoodiePreCommitValidatorConfig.newBuilder()
+        .withPreCommitValidator(SqlQuerySingleResultPreCommitValidator.class.getName())
+        .withPrecommitValidatorSingleResultSqlQueries(COUNT_SQL_QUERY_FOR_VALIDATION + "#" + numRecords)
+        .build();
+    HoodieWriteConfig config = getConfigBuilder().withAutoCommit(true)
+        .withPreCommitValidatorConfig(validatorConfig).build();
+    try (SparkRDDWriteClient client = getHoodieWriteClient(config)) {
+      Function3<JavaRDD<WriteStatus>, SparkRDDWriteClient, JavaRDD<HoodieRecord>, String> writeFn = (writeClient, recordRDD, instantTime) ->
+          writeClient.bulkInsert(recordRDD, instantTime, Option.empty());
+      String newCommitTime = HoodieActiveTimeline.createNewInstantTime();
+      JavaRDD<WriteStatus> result = insertFirstBatch(config, client, newCommitTime,
+          "000", numRecords, writeFn, false, false, numRecords);
+      assertTrue(testTable.commitExists(newCommitTime));
+    }
+  }
+
+  @Test
+  public void testPreCommitValidationFailureOnInsert() throws Exception {
+    int numRecords = 200;
+    HoodiePreCommitValidatorConfig validatorConfig = HoodiePreCommitValidatorConfig.newBuilder()
+        .withPreCommitValidator(SqlQuerySingleResultPreCommitValidator.class.getName())
+        //set wrong value for expected number of rows
+        .withPrecommitValidatorSingleResultSqlQueries(COUNT_SQL_QUERY_FOR_VALIDATION + "#" + 500)
+        .build();
+    HoodieWriteConfig config = getConfigBuilder().withPreCommitValidatorConfig(validatorConfig).build();
+    String newCommitTime = HoodieActiveTimeline.createNewInstantTime();
+    try (SparkRDDWriteClient client = getHoodieWriteClient(config)) {
+      Function3<JavaRDD<WriteStatus>, SparkRDDWriteClient, JavaRDD<HoodieRecord>, String> writeFn = (writeClient, recordRDD, instantTime) ->
+          writeClient.bulkInsert(recordRDD, instantTime, Option.empty());
+      JavaRDD<WriteStatus> result = insertFirstBatch(config, client, newCommitTime,
+          "000", numRecords, writeFn, false, false, numRecords);
+      fail("Expected validation to fail because we only insert 200 rows. Validation is configured to expect 500 rows");
+    } catch (HoodieInsertException e) {
+      if (e.getCause() instanceof HoodieValidationException) {
+        // expected because wrong value passed
+      } else {
+        throw e;
+      }
+    }
+
+    assertFalse(testTable.commitExists(newCommitTime));
   }
 
   /**
@@ -1105,7 +1162,7 @@ public class TestHoodieClientOnCopyOnWriteStorage extends HoodieClientTestBase {
     // setup clustering config
     HoodieClusteringConfig clusteringConfig = HoodieClusteringConfig.newBuilder().withClusteringMaxNumGroups(10)
         .withClusteringTargetPartitions(0).withInlineClusteringNumCommits(1).build();
-    testClustering(clusteringConfig);
+    testInsertAndClustering(clusteringConfig, SqlQueryEqualityPreCommitValidator.class.getName(), COUNT_SQL_QUERY_FOR_VALIDATION, "");
   }
 
   @Test
@@ -1114,7 +1171,59 @@ public class TestHoodieClientOnCopyOnWriteStorage extends HoodieClientTestBase {
     HoodieClusteringConfig clusteringConfig = HoodieClusteringConfig.newBuilder().withClusteringMaxNumGroups(10)
         .withClusteringSortColumns("_hoodie_record_key")
         .withClusteringTargetPartitions(0).withInlineClusteringNumCommits(1).build();
-    testClustering(clusteringConfig);
+    testInsertAndClustering(clusteringConfig, SqlQueryEqualityPreCommitValidator.class.getName(), COUNT_SQL_QUERY_FOR_VALIDATION, "");
+  }
+
+  @Test
+  public void testClusteringWithFailingValidator() throws Exception {
+    // setup clustering config
+    HoodieClusteringConfig clusteringConfig = HoodieClusteringConfig.newBuilder().withClusteringMaxNumGroups(10)
+        .withClusteringSortColumns("_hoodie_record_key")
+        .withClusteringTargetPartitions(0).withInlineClusteringNumCommits(1).build();
+    try {
+      testInsertAndClustering(clusteringConfig, FailingPreCommitValidator.class.getName(), COUNT_SQL_QUERY_FOR_VALIDATION, "");
+      fail("expected pre-commit clustering validation to fail");
+    } catch (HoodieValidationException e) {
+      // expected
+    }
+  }
+
+  @Test
+  public void testClusteringInvalidConfigForSqlQueryValidator() throws Exception {
+    // setup clustering config
+    HoodieClusteringConfig clusteringConfig = HoodieClusteringConfig.newBuilder().withClusteringMaxNumGroups(10)
+        .withClusteringTargetPartitions(0).withInlineClusteringNumCommits(1).build();
+    try {
+      testInsertAndClustering(clusteringConfig, SqlQueryEqualityPreCommitValidator.class.getName(), "", "");
+      fail("expected pre-commit clustering validation to fail because sql query is not configured");
+    } catch (HoodieValidationException e) {
+      // expected
+    }
+  }
+
+  @Test
+  public void testClusteringInvalidConfigForSqlQuerySingleResultValidator() throws Exception {
+    // setup clustering config
+    HoodieClusteringConfig clusteringConfig = HoodieClusteringConfig.newBuilder().withClusteringMaxNumGroups(10)
+        .withClusteringTargetPartitions(0).withInlineClusteringNumCommits(1).build();
+
+    testInsertAndClustering(clusteringConfig, SqlQuerySingleResultPreCommitValidator.class.getName(),
+        "", COUNT_SQL_QUERY_FOR_VALIDATION + "#400");
+  }
+
+  @Test
+  public void testClusteringInvalidConfigForSqlQuerySingleResultValidatorFailure() throws Exception {
+    // setup clustering config
+    HoodieClusteringConfig clusteringConfig = HoodieClusteringConfig.newBuilder().withClusteringMaxNumGroups(10)
+        .withClusteringTargetPartitions(0).withInlineClusteringNumCommits(1).build();
+
+    try {
+      testInsertAndClustering(clusteringConfig, SqlQuerySingleResultPreCommitValidator.class.getName(),
+          "", COUNT_SQL_QUERY_FOR_VALIDATION + "#802");
+      fail("expected pre-commit clustering validation to fail because of count mismatch. expect 400 rows, not 802");
+    } catch (HoodieValidationException e) {
+      // expected
+    }
   }
 
   @Test
@@ -1123,38 +1232,35 @@ public class TestHoodieClientOnCopyOnWriteStorage extends HoodieClientTestBase {
     HoodieClusteringConfig clusteringConfig = HoodieClusteringConfig.newBuilder().withClusteringMaxNumGroups(10)
         .withClusteringTargetPartitions(0).withInlineClusteringNumCommits(1).build();
 
-    // start clustering, but dont commit
-    List<HoodieRecord> allRecords = testClustering(clusteringConfig, false);
-    HoodieTableMetaClient metaClient = HoodieTableMetaClient.builder().setConf(hadoopConf).setBasePath(basePath).build();
-    List<Pair<HoodieInstant, HoodieClusteringPlan>> pendingClusteringPlans =
-        ClusteringUtils.getAllPendingClusteringPlans(metaClient).collect(Collectors.toList());
-    assertEquals(1, pendingClusteringPlans.size());
-    HoodieInstant pendingClusteringInstant = pendingClusteringPlans.get(0).getLeft();
+    List<HoodieRecord> initialRecords = testInsertTwoBatches();
+    try {
+      testClustering(clusteringConfig, SqlQuerySingleResultPreCommitValidator.class.getName(),
+          "", COUNT_SQL_QUERY_FOR_VALIDATION + "#802", initialRecords);
+      fail("expected pre-commit clustering validation to fail because of count mismatch. expect 400 rows, not 802");
+    } catch (HoodieValidationException e) {
+      // expected
+    }
 
-    // complete another commit after pending clustering
-    HoodieWriteConfig config = getConfigBuilder(HoodieFailedWritesCleaningPolicy.EAGER).build();
-    SparkRDDWriteClient client = getHoodieWriteClient(config);
-    dataGen = new HoodieTestDataGenerator();
-    String commitTime = HoodieActiveTimeline.createNewInstantTime();
-    allRecords.addAll(dataGen.generateInserts(commitTime, 200));
-    writeAndVerifyBatch(client, allRecords, commitTime);
-
-    // verify pending clustering can be rolled back (even though there is a completed commit greater than pending clustering)
-    client.rollback(pendingClusteringInstant.getTimestamp());
-    metaClient.reloadActiveTimeline();
-    // verify there are no pending clustering instants
-    assertEquals(0, ClusteringUtils.getAllPendingClusteringPlans(metaClient).count());
+    String pendingClusteringInstant = ClusteringUtils.getAllPendingClusteringPlans(metaClient).findFirst().get().getLeft().getTimestamp();
+    getHoodieWriteClient(getSmallInsertWriteConfig(100)).rollback(pendingClusteringInstant);
+    List<HoodieRecord> newRecords = testInsertTwoBatches();
+    List<HoodieRecord> expectedRecords = Stream.concat(initialRecords.stream(), newRecords.stream()).collect(Collectors.toList());
+    testClustering(clusteringConfig, SqlQuerySingleResultPreCommitValidator.class.getName(),
+        "", COUNT_SQL_QUERY_FOR_VALIDATION + "#" + expectedRecords.size(), expectedRecords);
   }
 
-  private List<HoodieRecord> testClustering(HoodieClusteringConfig clusteringConfig) throws Exception {
-    return testClustering(clusteringConfig, false);
+  private void testInsertAndClustering(HoodieClusteringConfig clusteringConfig, String validatorClasses,
+                                       String sqlQueryForEqualityValidation, String sqlQueryForSingleResultValidation) throws Exception {
+    List<HoodieRecord> allRecords = testInsertTwoBatches();
+    testClustering(clusteringConfig, validatorClasses, sqlQueryForEqualityValidation, sqlQueryForSingleResultValidation, allRecords);
+
   }
-  
-  private List<HoodieRecord> testClustering(HoodieClusteringConfig clusteringConfig, boolean completeClustering) throws Exception {
+
+  private List<HoodieRecord> testInsertTwoBatches() {
     // create config to not update small files.
     HoodieWriteConfig config = getSmallInsertWriteConfig(2000, false, 10);
     SparkRDDWriteClient client = getHoodieWriteClient(config);
-    dataGen = new HoodieTestDataGenerator();
+    dataGen = new HoodieTestDataGenerator(new String[] {"2015/03/16"});
     String commitTime = HoodieActiveTimeline.createNewInstantTime();
     List<HoodieRecord> records1 = dataGen.generateInserts(commitTime, 200);
     List<WriteStatus> statuses1 = writeAndVerifyBatch(client, records1, commitTime);
@@ -1168,26 +1274,40 @@ public class TestHoodieClientOnCopyOnWriteStorage extends HoodieClientTestBase {
     Set<HoodieFileGroupId> fileIdIntersection = new HashSet<>(fileIds1);
     fileIdIntersection.retainAll(fileIds2);
     assertEquals(0, fileIdIntersection.size());
+    return Stream.concat(records1.stream(), records2.stream()).collect(Collectors.toList());
+  }
+  
+  private String testClustering(HoodieClusteringConfig clusteringConfig, String validatorClasses,
+                              String sqlQueryForEqualityValidation, String sqlQueryForSingleResultValidation,
+                              List<HoodieRecord> allRecords) {
 
-    config = getConfigBuilder(HoodieFailedWritesCleaningPolicy.LAZY).withAutoCommit(completeClustering)
+    HoodieWriteMetadata<JavaRDD<WriteStatus>> clusterMetadata =
+        performClustering(clusteringConfig, validatorClasses, sqlQueryForEqualityValidation, sqlQueryForSingleResultValidation, allRecords);
+
+    String clusteringCommitTime = metaClient.reloadActiveTimeline().getCompletedReplaceTimeline()
+        .getReverseOrderedInstants().findFirst().get().getTimestamp();
+    verifyRecordsWritten(clusteringCommitTime, allRecords, clusterMetadata.getWriteStatuses().collect());
+    return clusteringCommitTime;
+  }
+  
+  private HoodieWriteMetadata<JavaRDD<WriteStatus>> performClustering(HoodieClusteringConfig clusteringConfig, String validatorClasses,
+                                                                      String sqlQueryForEqualityValidation, String sqlQueryForSingleResultValidation,
+                                                                      List<HoodieRecord> allRecords) {
+    HoodiePreCommitValidatorConfig validatorConfig = HoodiePreCommitValidatorConfig.newBuilder()
+        .withPreCommitValidator(StringUtils.nullToEmpty(validatorClasses))
+        .withPrecommitValidatorEqualitySqlQueries(sqlQueryForEqualityValidation)
+        .withPrecommitValidatorSingleResultSqlQueries(sqlQueryForSingleResultValidation)
+        .build();
+    
+    HoodieWriteConfig config = getConfigBuilder().withAutoCommit(false)
+        .withPreCommitValidatorConfig(validatorConfig)
         .withClusteringConfig(clusteringConfig).build();
 
     // create client with new config.
-    client = getHoodieWriteClient(config);
+    SparkRDDWriteClient client = getHoodieWriteClient(config);
     String clusteringCommitTime = client.scheduleClustering(Option.empty()).get().toString();
-    HoodieWriteMetadata<JavaRDD<WriteStatus>> clusterMetadata = client.cluster(clusteringCommitTime, completeClustering);
-    List<HoodieRecord> allRecords = Stream.concat(records1.stream(), records2.stream()).collect(Collectors.toList());
-    verifyRecordsWritten(clusteringCommitTime, allRecords, clusterMetadata.getWriteStatuses().collect());
-    Set<HoodieFileGroupId> insertedFileIds = new HashSet<>();
-    insertedFileIds.addAll(fileIds1);
-    insertedFileIds.addAll(fileIds2);
-
-    Set<HoodieFileGroupId> replacedFileIds = new HashSet<>();
-    clusterMetadata.getPartitionToReplaceFileIds().entrySet().forEach(partitionFiles ->
-        partitionFiles.getValue().stream().forEach(file ->
-            replacedFileIds.add(new HoodieFileGroupId(partitionFiles.getKey(), file))));
-    assertEquals(insertedFileIds, replacedFileIds);
-    return allRecords;
+    HoodieWriteMetadata<JavaRDD<WriteStatus>> clusterMetadata = client.cluster(clusteringCommitTime, true);
+    return clusterMetadata;
   }
 
   private Set<HoodieFileGroupId> getFileGroupIdsFromWriteStatus(List<WriteStatus> statuses) {
@@ -2003,6 +2123,18 @@ public class TestHoodieClientOnCopyOnWriteStorage extends HoodieClientTestBase {
         .withTimelineLayoutVersion(1)
         .withHeartbeatIntervalInMs(3 * 1000)
         .withAutoCommit(false).build();
+  }
+
+  public static class FailingPreCommitValidator<T extends HoodieRecordPayload, I, K, O extends JavaRDD<WriteStatus>> extends SparkPreCommitValidator<T, I, K, O> {
+
+    public FailingPreCommitValidator(HoodieSparkTable table, HoodieEngineContext context, HoodieWriteConfig config) {
+      super(table, context, config);
+    }
+
+    @Override
+    protected void validateRecordsBeforeAndAfter(final Dataset<Row> before, final Dataset<Row> after, final Set<String> partitionsAffected) {
+      throw new HoodieValidationException("simulate failure");
+    }
   }
 
 }
