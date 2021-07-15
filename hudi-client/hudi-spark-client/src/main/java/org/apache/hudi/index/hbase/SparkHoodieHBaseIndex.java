@@ -65,7 +65,6 @@ import org.apache.spark.api.java.JavaPairRDD;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.api.java.function.Function2;
-import org.joda.time.DateTime;
 
 import java.io.IOException;
 import java.io.Serializable;
@@ -308,7 +307,7 @@ public class SparkHoodieHBaseIndex<T extends HoodieRecordPayload> extends SparkH
           hbaseConnection = getHBaseConnection();
         }
       }
-      final long startTimeForPutsTask = DateTime.now().getMillis();
+      final long startTimeForPutsTask = System.currentTimeMillis();
       LOG.info("startTimeForPutsTask for this task: " + startTimeForPutsTask);
 
       try (BufferedMutator mutator = hbaseConnection.getBufferedMutator(TableName.valueOf(tableName))) {
@@ -356,7 +355,7 @@ public class SparkHoodieHBaseIndex<T extends HoodieRecordPayload> extends SparkH
           }
           writeStatusList.add(writeStatus);
         }
-        final long endPutsTime = DateTime.now().getMillis();
+        final long endPutsTime = System.currentTimeMillis();
         LOG.info("hbase puts task time for this task: " + (endPutsTime - startTimeForPutsTask));
       } catch (IOException e) {
         throw new HoodieIndexException("Failed to Update Index locations because of exception with HBase Client", e);

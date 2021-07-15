@@ -17,7 +17,6 @@
 
 package org.apache.hudi.keygen;
 
-import org.apache.avro.generic.GenericRecord;
 import org.apache.hudi.avro.HoodieAvroUtils;
 import org.apache.hudi.common.config.TypedProperties;
 import org.apache.hudi.common.util.Option;
@@ -28,15 +27,16 @@ import org.apache.hudi.exception.HoodieNotSupportedException;
 import org.apache.hudi.keygen.constant.KeyGeneratorOptions;
 import org.apache.hudi.keygen.parser.AbstractHoodieDateTimeParser;
 import org.apache.hudi.keygen.parser.HoodieDateTimeParserImpl;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
-import org.joda.time.format.DateTimeFormat;
-import org.joda.time.format.DateTimeFormatter;
+
+import org.apache.avro.generic.GenericRecord;
 
 import java.io.IOException;
 import java.io.Serializable;
 import java.math.BigDecimal;
-import java.util.TimeZone;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.concurrent.TimeUnit;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
@@ -57,10 +57,8 @@ public class TimestampBasedAvroKeyGenerator extends SimpleAvroKeyGenerator {
   private transient DateTimeFormatter partitionFormatter;
   private final AbstractHoodieDateTimeParser parser;
 
-  // TimeZone detailed settings reference
-  // https://docs.oracle.com/javase/8/docs/api/java/util/TimeZone.html
-  private final DateTimeZone inputDateTimeZone;
-  private final DateTimeZone outputDateTimeZone;
+  private final ZoneId inputDateTimeZone;
+  private final ZoneId outputDateTimeZone;
 
   protected final boolean encodePartitionPath;
 
@@ -140,7 +138,7 @@ public class TimestampBasedAvroKeyGenerator extends SimpleAvroKeyGenerator {
    * Set default value to partitionVal if the input value of partitionPathField is null.
    */
   public Object getDefaultPartitionVal() {
-    Object result = 1L;
+    long result = 1;
     if (timestampType == TimestampType.DATE_STRING || timestampType == TimestampType.MIXED) {
       // since partitionVal is null, we can set a default value of any format as TIMESTAMP_INPUT_DATE_FORMAT_PROP
       // configured, here we take the first.
@@ -148,14 +146,15 @@ public class TimestampBasedAvroKeyGenerator extends SimpleAvroKeyGenerator {
       // inputFormatter
       String delimiter = parser.getConfigInputDateFormatDelimiter();
       String format = config.getString(Config.TIMESTAMP_INPUT_DATE_FORMAT_PROP, "").split(delimiter)[0];
+      DateTimeFormatter formatter = DateTimeFormatter.ofPattern(format);
 
       // if both input and output timeZone are not configured, use GMT.
       if (null != inputDateTimeZone) {
-        return new DateTime(result, inputDateTimeZone).toString(format);
+        return ZonedDateTime.ofInstant(Instant.EPOCH.plusMillis(result), inputDateTimeZone).format(formatter);
       } else if (null != outputDateTimeZone) {
-        return new DateTime(result, outputDateTimeZone).toString(format);
+        return ZonedDateTime.ofInstant(Instant.EPOCH.plusMillis(result), inputDateTimeZone).format(formatter);
       } else {
-        return new DateTime(result, DateTimeZone.forTimeZone(TimeZone.getTimeZone("GMT"))).toString(format);
+        return ZonedDateTime.ofInstant(Instant.EPOCH.plusMillis(result), ZoneId.of("GMT")).format(formatter);
       }
     }
     return result;
@@ -169,7 +168,7 @@ public class TimestampBasedAvroKeyGenerator extends SimpleAvroKeyGenerator {
       this.inputFormatter = parser.getInputFormatter();
     }
     if (this.partitionFormatter == null) {
-      this.partitionFormatter = DateTimeFormat.forPattern(outputDateFormat);
+      this.partitionFormatter = DateTimeFormatter.ofPattern(outputDateFormat);
       if (this.outputDateTimeZone != null) {
         partitionFormatter = partitionFormatter.withZone(outputDateTimeZone);
       }
@@ -199,19 +198,19 @@ public class TimestampBasedAvroKeyGenerator extends SimpleAvroKeyGenerator {
       if (!inputFormatter.isPresent()) {
         throw new HoodieException("Missing inputformatter. Ensure " + Config.TIMESTAMP_INPUT_DATE_FORMAT_PROP + " config is set when timestampType is DATE_STRING or MIXED!");
       }
-      DateTime parsedDateTime = inputFormatter.get().parseDateTime(partitionVal.toString());
+      ZonedDateTime parsedDateTime = ZonedDateTime.parse(partitionVal.toString(), inputFormatter.get());
       if (this.outputDateTimeZone == null) {
         // Use the timezone that came off the date that was passed in, if it had one
         partitionFormatter = partitionFormatter.withZone(parsedDateTime.getZone());
       }
-
-      timeMs = inputFormatter.get().parseDateTime(partitionVal.toString()).getMillis();
+      timeMs = parsedDateTime.toInstant().toEpochMilli();
     } else {
       throw new HoodieNotSupportedException(
           "Unexpected type for partition field: " + partitionVal.getClass().getName());
     }
-    DateTime timestamp = new DateTime(timeMs, outputDateTimeZone);
-    String partitionPath = timestamp.toString(partitionFormatter);
+    ZoneId zoneId = outputDateTimeZone == null ? ZoneId.systemDefault() : outputDateTimeZone;
+    ZonedDateTime timestamp = ZonedDateTime.ofInstant(Instant.ofEpochMilli(timeMs), zoneId);
+    String partitionPath = timestamp.format(partitionFormatter);
     if (encodePartitionPath) {
       partitionPath = PartitionPathEncodeUtils.escapePathName(partitionPath);
     }

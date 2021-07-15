@@ -35,8 +35,10 @@ import org.apache.flink.table.types.logical.DecimalType;
 import org.apache.flink.table.types.logical.LogicalType;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.table.types.logical.utils.LogicalTypeUtils;
+//CHECKSTYLE:OFF
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeFieldType;
+//CHECKSTYLE:ON
 
 import java.io.Serializable;
 import java.lang.reflect.Array;

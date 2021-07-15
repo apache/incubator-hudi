@@ -20,13 +20,12 @@ package org.apache.hudi.cli.utils;
 
 import org.apache.hudi.common.table.HoodieTableMetaClient;
 
-import org.joda.time.DateTime;
-
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.time.LocalDate;
 
 /**
  * Hive connection related utilities.
@@ -72,12 +71,13 @@ public class HiveUtil {
 
   public static long countRecords(String jdbcUrl, HoodieTableMetaClient source, String srcDb, int partitions,
       String user, String pass) throws SQLException {
-    DateTime dateTime = DateTime.now();
-    String endDateStr = dateTime.getYear() + "-" + String.format("%02d", dateTime.getMonthOfYear()) + "-"
-        + String.format("%02d", dateTime.getDayOfMonth());
-    dateTime = dateTime.minusDays(partitions);
-    String startDateStr = dateTime.getYear() + "-" + String.format("%02d", dateTime.getMonthOfYear()) + "-"
-        + String.format("%02d", dateTime.getDayOfMonth());
+    LocalDate date = LocalDate.now();
+    date = date.minusDays(partitions);
+    String endDateStr = date.getYear() + "-" + String.format("%02d", date.getMonthValue()) + "-"
+        + String.format("%02d", date.getDayOfMonth());
+    date = date.minusDays(partitions);
+    String startDateStr = date.getYear() + "-" + String.format("%02d", date.getMonthValue()) + "-"
+        + String.format("%02d", date.getDayOfMonth());
     System.out.println("Start date " + startDateStr + " and end date " + endDateStr);
     return countRecords(jdbcUrl, source, srcDb, startDateStr, endDateStr, user, pass);
   }

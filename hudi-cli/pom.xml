@@ -241,11 +241,6 @@
       <version>1.0.2</version>
     </dependency>
 
-    <dependency>
-      <groupId>joda-time</groupId>
-      <artifactId>joda-time</artifactId>
-    </dependency>
-
     <!-- Hadoop -->
     <dependency>
       <groupId>org.apache.hadoop</groupId>

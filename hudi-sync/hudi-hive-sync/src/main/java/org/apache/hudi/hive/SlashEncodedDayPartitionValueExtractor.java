@@ -18,10 +18,10 @@
 
 package org.apache.hudi.hive;
 
-import org.joda.time.DateTime;
-import org.joda.time.format.DateTimeFormat;
-import org.joda.time.format.DateTimeFormatter;
-
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.Collections;
 import java.util.List;
 
@@ -37,12 +37,12 @@ public class SlashEncodedDayPartitionValueExtractor implements PartitionValueExt
   private transient DateTimeFormatter dtfOut;
 
   public SlashEncodedDayPartitionValueExtractor() {
-    this.dtfOut = DateTimeFormat.forPattern("yyyy-MM-dd");
+    this.dtfOut = DateTimeFormatter.ofPattern("yyyy-MM-dd");
   }
 
   private DateTimeFormatter getDtfOut() {
     if (dtfOut == null) {
-      dtfOut = DateTimeFormat.forPattern("yyyy-MM-dd");
+      dtfOut = DateTimeFormatter.ofPattern("yyyy-MM-dd");
     }
     return dtfOut;
   }
@@ -58,8 +58,8 @@ public class SlashEncodedDayPartitionValueExtractor implements PartitionValueExt
     int year = Integer.parseInt(splits[0].contains("=") ? splits[0].split("=")[1] : splits[0]);
     int mm = Integer.parseInt(splits[1].contains("=") ? splits[1].split("=")[1] : splits[1]);
     int dd = Integer.parseInt(splits[2].contains("=") ? splits[2].split("=")[1] : splits[2]);
-    DateTime dateTime = new DateTime(year, mm, dd, 0, 0);
+    ZonedDateTime dateTime = ZonedDateTime.of(LocalDateTime.of(year, mm, dd, 0, 0), ZoneId.systemDefault());
 
-    return Collections.singletonList(getDtfOut().print(dateTime));
+    return Collections.singletonList(dateTime.format(getDtfOut()));
   }
 }

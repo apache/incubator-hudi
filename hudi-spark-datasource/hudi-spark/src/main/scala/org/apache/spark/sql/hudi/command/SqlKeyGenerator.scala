@@ -17,14 +17,15 @@
 
 package org.apache.spark.sql.hudi.command
 
-import java.util.concurrent.TimeUnit.{MICROSECONDS, MILLISECONDS}
-
 import org.apache.avro.generic.GenericRecord
 import org.apache.hudi.common.config.TypedProperties
 import org.apache.hudi.common.util.PartitionPathEncodeUtils
 import org.apache.hudi.keygen.{ComplexKeyGenerator, KeyGenUtils}
 import org.apache.spark.sql.types.{StructType, TimestampType}
-import org.joda.time.format.DateTimeFormat
+
+import java.time.Instant
+import java.time.format.DateTimeFormatter
+import java.util.concurrent.TimeUnit.{MICROSECONDS, MILLISECONDS}
 
 /**
  * A complex key generator for sql command which do some process for the
@@ -63,7 +64,7 @@ class SqlKeyGenerator(props: TypedProperties) extends ComplexKeyGenerator(props)
             case TimestampType =>
               val timeMs = MILLISECONDS.convert(_partitionValue.toLong, MICROSECONDS)
               val timestampFormat = PartitionPathEncodeUtils.escapePathName(
-                SqlKeyGenerator.timestampTimeFormat.print(timeMs))
+                SqlKeyGenerator.timestampTimeFormat.format(Instant.ofEpochMilli(timeMs)))
               if (isHiveStyle) {
                 s"$hiveStylePrefix$timestampFormat"
               } else {
@@ -80,5 +81,5 @@ class SqlKeyGenerator(props: TypedProperties) extends ComplexKeyGenerator(props)
 
 object SqlKeyGenerator {
   val PARTITION_SCHEMA = "hoodie.sql.partition.schema"
-  private val timestampTimeFormat = DateTimeFormat.forPattern("yyyy-MM-dd HH:mm:ss")
+  private val timestampTimeFormat = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
 }

@@ -20,10 +20,10 @@ package org.apache.hudi.keygen.parser;
 import org.apache.hudi.common.config.TypedProperties;
 import org.apache.hudi.common.util.Option;
 import org.apache.hudi.keygen.TimestampBasedAvroKeyGenerator.Config;
-import org.joda.time.DateTimeZone;
-import org.joda.time.format.DateTimeFormatter;
 
 import java.io.Serializable;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 
 public abstract class AbstractHoodieDateTimeParser implements Serializable {
 
@@ -37,8 +37,7 @@ public abstract class AbstractHoodieDateTimeParser implements Serializable {
 
   private String initInputDateFormatDelimiter() {
     String inputDateFormatDelimiter = config.getString(Config.TIMESTAMP_INPUT_DATE_FORMAT_LIST_DELIMITER_REGEX_PROP, ",").trim();
-    inputDateFormatDelimiter = inputDateFormatDelimiter.isEmpty() ? "," : inputDateFormatDelimiter;
-    return inputDateFormatDelimiter;
+    return inputDateFormatDelimiter.isEmpty() ? "," : inputDateFormatDelimiter;
   }
 
   /**
@@ -56,12 +55,12 @@ public abstract class AbstractHoodieDateTimeParser implements Serializable {
   /**
    * Returns the datetime zone one should expect the incoming values into.
    */
-  public abstract DateTimeZone getInputDateTimeZone();
+  public abstract ZoneId getInputDateTimeZone();
 
   /**
    * Returns the datetime zone using which the final partition paths for hudi dataset are created.
    */
-  public abstract DateTimeZone getOutputDateTimeZone();
+  public abstract ZoneId getOutputDateTimeZone();
 
   /**
    * Returns the input date format delimiter, comma by default.

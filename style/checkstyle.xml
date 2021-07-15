@@ -267,7 +267,7 @@
         <module name="CommentsIndentation"/>
         <module name="IllegalImport">
             <property name="regexp" value="true"/>
-            <property name="illegalPkgs" value="org\.apache\.commons, com\.google\.common"/>
+            <property name="illegalPkgs" value="org\.apache\.commons, com\.google\.common, org\.joda\.time"/>
             <property name="illegalClasses"
               value="^java\.util\.Optional, ^org\.junit\.(?!jupiter|platform|contrib|Rule|runner)(.*)"/>
         </module>
@@ -309,5 +309,6 @@
             <property name="path" value="^.*[\\/]hudi-client[\\/]hudi-client-common[\\/]src[\\/].*$"/>
         </module>
 
+        <module name="SuppressionCommentFilter"/>
     </module>
 </module>
