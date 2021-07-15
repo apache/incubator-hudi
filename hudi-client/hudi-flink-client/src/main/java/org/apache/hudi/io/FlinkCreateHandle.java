@@ -42,8 +42,8 @@ import java.util.List;
  *
  * <p>For the first mini-batch, it initializes and sets up the next file path to write,
  * then closes the file writer. The subsequent mini-batches are appended to a file with new name,
- * the new file would then rename to this file name,
- * behaves like each mini-batch data are appended to the same file.
+ *
+ * behaves like each mini-batch data is generated to a new file.
  *
  * @see FlinkMergeAndReplaceHandle
  */
