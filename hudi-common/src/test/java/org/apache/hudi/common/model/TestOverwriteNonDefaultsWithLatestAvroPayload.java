@@ -26,6 +26,7 @@ import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -43,7 +44,8 @@ public class TestOverwriteNonDefaultsWithLatestAvroPayload {
             new Schema.Field("partition", Schema.create(Schema.Type.STRING), "", ""),
             new Schema.Field("ts", Schema.create(Schema.Type.LONG), "", null),
             new Schema.Field("_hoodie_is_deleted", Schema.create(Schema.Type.BOOLEAN), "", false),
-            new Schema.Field("city", Schema.create(Schema.Type.STRING), "", "NY")
+            new Schema.Field("city", Schema.create(Schema.Type.STRING), "", "NY"),
+            new Schema.Field("child", Schema.createArray(Schema.create(Schema.Type.STRING)), "", Collections.emptyList())
             ));
   }
 
@@ -55,6 +57,7 @@ public class TestOverwriteNonDefaultsWithLatestAvroPayload {
     record1.put("ts", 0L);
     record1.put("_hoodie_is_deleted", false);
     record1.put("city", "NY0");
+    record1.put("child", Arrays.asList("A"));
 
     GenericRecord record2 = new GenericData.Record(schema);
     record2.put("id", "2");
@@ -62,6 +65,7 @@ public class TestOverwriteNonDefaultsWithLatestAvroPayload {
     record2.put("ts", 1L);
     record2.put("_hoodie_is_deleted", false);
     record2.put("city", "NY");
+    record2.put("child", Collections.emptyList());
 
     GenericRecord record3 = new GenericData.Record(schema);
     record3.put("id", "2");
@@ -69,6 +73,7 @@ public class TestOverwriteNonDefaultsWithLatestAvroPayload {
     record3.put("ts", 1L);
     record3.put("_hoodie_is_deleted", false);
     record3.put("city", "NY0");
+    record3.put("child", Arrays.asList("A"));
 
 
     OverwriteNonDefaultsWithLatestAvroPayload payload1 = new OverwriteNonDefaultsWithLatestAvroPayload(record1, 1);
@@ -91,6 +96,7 @@ public class TestOverwriteNonDefaultsWithLatestAvroPayload {
     record1.put("ts", 0L);
     record1.put("_hoodie_is_deleted", false);
     record1.put("city", "NY0");
+    record1.put("child", Collections.emptyList());
 
     GenericRecord delRecord1 = new GenericData.Record(schema);
     delRecord1.put("id", "2");
@@ -98,6 +104,7 @@ public class TestOverwriteNonDefaultsWithLatestAvroPayload {
     delRecord1.put("ts", 1L);
     delRecord1.put("_hoodie_is_deleted", true);
     delRecord1.put("city", "NY0");
+    delRecord1.put("child", Collections.emptyList());
 
     GenericRecord record2 = new GenericData.Record(schema);
     record2.put("id", "1");
@@ -105,6 +112,7 @@ public class TestOverwriteNonDefaultsWithLatestAvroPayload {
     record2.put("ts", 0L);
     record2.put("_hoodie_is_deleted", true);
     record2.put("city", "NY0");
+    record2.put("child", Collections.emptyList());
 
     OverwriteNonDefaultsWithLatestAvroPayload payload1 = new OverwriteNonDefaultsWithLatestAvroPayload(record1, 1);
     OverwriteNonDefaultsWithLatestAvroPayload payload2 = new OverwriteNonDefaultsWithLatestAvroPayload(delRecord1, 2);

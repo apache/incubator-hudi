@@ -18,11 +18,11 @@
 
 package org.apache.hudi.common.model;
 
-import org.apache.hudi.common.util.Option;
-
 import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.avro.generic.IndexedRecord;
+
+import org.apache.hudi.common.util.Option;
 
 import java.io.IOException;
 import java.util.List;
@@ -63,6 +63,7 @@ public class OverwriteNonDefaultsWithLatestAvroPayload extends OverwriteWithLate
       List<Schema.Field> fields = schema.getFields();
       fields.forEach(field -> {
         Object value = insertRecord.get(field.name());
+        value = field.schema().getType().equals(Schema.Type.STRING) && value != null ? value.toString() : value;
         Object defaultValue = field.defaultVal();
         if (!overwriteField(value, defaultValue)) {
           currentRecord.put(field.name(), value);
