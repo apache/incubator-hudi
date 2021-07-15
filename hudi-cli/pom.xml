@@ -69,6 +69,7 @@
               <overWriteReleases>true</overWriteReleases>
               <overWriteSnapshots>true</overWriteSnapshots>
               <overWriteIfNewer>true</overWriteIfNewer>
+              <excludeGroupIds>org.apache.hadoop</excludeGroupIds>
             </configuration>
           </execution>
         </executions>
@@ -250,10 +251,12 @@
     <dependency>
       <groupId>org.apache.hadoop</groupId>
       <artifactId>hadoop-common</artifactId>
+      <classifier>tests</classifier>
     </dependency>
     <dependency>
       <groupId>org.apache.hadoop</groupId>
       <artifactId>hadoop-hdfs</artifactId>
+      <classifier>tests</classifier>
     </dependency>
 
     <!-- Test -->
