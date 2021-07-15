@@ -19,6 +19,7 @@
 package org.apache.hudi.common.config;
 
 import org.apache.hudi.common.util.Option;
+import org.apache.hudi.common.util.StringUtils;
 import org.apache.hudi.exception.HoodieException;
 
 import java.io.Serializable;
@@ -87,6 +88,14 @@ public class ConfigProperty<T> implements Serializable {
   public ConfigProperty<T> withDocumentation(String doc) {
     Objects.requireNonNull(doc);
     return new ConfigProperty<>(key, defaultValue, doc, sinceVersion, deprecatedVersion, inferFunction, alternatives);
+  }
+
+  public String doc() {
+    return hasDoc() ? doc : StringUtils.EMPTY_STRING;
+  }
+
+  public boolean hasDoc() {
+    return !StringUtils.isNullOrEmpty(doc);
   }
 
   public ConfigProperty<T> withAlternatives(String... alternatives) {
