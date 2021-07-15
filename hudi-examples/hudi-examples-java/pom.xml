@@ -15,24 +15,31 @@
   See the License for the specific language governing permissions and
   limitations under the License.
 -->
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
-
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <parent>
-    <artifactId>hudi</artifactId>
+    <artifactId>hudi-examples</artifactId>
     <groupId>org.apache.hudi</groupId>
     <version>0.9.0-SNAPSHOT</version>
   </parent>
   <modelVersion>4.0.0</modelVersion>
 
-  <artifactId>hudi-examples</artifactId>
-  <packaging>pom</packaging>
-  <modules>
-    <module>hudi-examples-common</module>
-    <module>hudi-examples-spark</module>
-    <module>hudi-examples-java</module>
-  </modules>
+  <artifactId>hudi-examples-java</artifactId>
+  <version>0.9.0-SNAPSHOT</version>
 
-  <properties>
-    <main.basedir>${project.parent.basedir}</main.basedir>
-  </properties>
+  <name>hudi-examples-java</name>
+
+  <dependencies>
+    <dependency>
+      <groupId>org.apache.hudi</groupId>
+      <artifactId>hudi-examples-common</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.hudi</groupId>
+      <artifactId>hudi-java-client</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+  </dependencies>
+
 </project>
