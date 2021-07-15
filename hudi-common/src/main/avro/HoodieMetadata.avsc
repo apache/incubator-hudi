@@ -51,6 +51,77 @@
                     ]
                 }
             }]
-        }
+        },
+         {   "name": "rangeIndexMetadata",
+             "doc": "Key is (partition+Full_File_Name). Value is range for a column in that group.",
+             "type": ["null", {
+                     "type": "record",
+                     "name": "HoodieRangeIndexInfo",
+                     "fields": [
+                         {
+                             "name": "min",
+                             "type": "string",
+                             "doc": "Min value in file"
+                         },
+                         {
+                             "name": "max",
+                             "type": "string",
+                             "doc": "Max value in file"
+                         },
+                         {
+                             "name": "isDeleted",
+                             "type": "boolean",
+                             "doc": "True if this file has been deleted"
+                         }
+                     ]
+             }]
+         },
+           {   "name": "partitionRangeIndexMetadata",
+               "doc": "Key is partition. Value is map<Full_File_Name -> range>",
+               "type": ["null", {
+                   "type": "map",
+                   "values": {
+                       "type": "record",
+                       "name": "HoodiePartitionRangeIndexInfo",
+                       "fields": [
+                           {
+                               "name": "min",
+                               "type": "string",
+                               "doc": "Min value in file"
+                           },
+                           {
+                               "name": "max",
+                               "type": "string",
+                               "doc": "Max value in file"
+                           },
+                           {
+                               "name": "isDeleted",
+                               "type": "boolean",
+                               "doc": "True if this file has been deleted"
+                           }
+                       ]
+               }}]
+           },
+           {   "name": "rangeToFileInfo",
+               "doc": "Key represents range, value is list of file paths",
+               "type": ["null", {
+                   "type": "array",
+                   "items": {
+                       "type": "record",
+                       "name": "HoodieFileInfo",
+                       "fields": [
+                           {
+                               "name": "filePath",
+                               "type": "string",
+                               "doc": "full file path"
+                           },
+                           {
+                               "name": "isDeleted",
+                               "type": "boolean",
+                               "doc": "True if this file has been deleted"
+                           }
+                       ]
+               }}]
+           }
     ]
 }

@@ -18,6 +18,13 @@
 
 package org.apache.hudi.metadata;
 
+import org.apache.avro.Schema;
+import org.apache.avro.generic.GenericRecord;
+import org.apache.avro.generic.IndexedRecord;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.FileStatus;
+import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.Path;
 import org.apache.hudi.avro.model.HoodieMetadataFileInfo;
 import org.apache.hudi.avro.model.HoodieMetadataRecord;
 import org.apache.hudi.common.model.HoodieKey;
@@ -26,13 +33,6 @@ import org.apache.hudi.common.model.HoodieRecordPayload;
 import org.apache.hudi.common.util.Option;
 import org.apache.hudi.common.util.ValidationUtils;
 import org.apache.hudi.exception.HoodieMetadataException;
-import org.apache.avro.Schema;
-import org.apache.avro.generic.GenericRecord;
-import org.apache.avro.generic.IndexedRecord;
-import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.FileStatus;
-import org.apache.hadoop.fs.FileSystem;
-import org.apache.hadoop.fs.Path;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -158,7 +158,7 @@ public class HoodieMetadataPayload implements HoodieRecordPayload<HoodieMetadata
       return Option.empty();
     }
 
-    HoodieMetadataRecord record = new HoodieMetadataRecord(key, type, filesystemMetadata);
+    HoodieMetadataRecord record = new HoodieMetadataRecord(key, type, filesystemMetadata, null, null, null);
     return Option.of(record);
   }
 

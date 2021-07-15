@@ -25,9 +25,9 @@ import org.apache.hudi.common.table.view.HoodieTableFileSystemView;
 import org.apache.hudi.common.table.view.SyncableFileSystemView;
 import org.apache.hudi.exception.HoodieIOException;
 
-import org.junit.jupiter.api.io.TempDir;
-
 import java.io.IOException;
+import java.nio.file.Paths;
+import java.util.UUID;
 
 /**
  * The common hoodie test harness to provide the basic infrastructure.
@@ -37,15 +37,14 @@ public class HoodieCommonTestHarness {
   protected String basePath = null;
   protected transient HoodieTestDataGenerator dataGen = null;
   protected transient HoodieTableMetaClient metaClient;
-  @TempDir
-  public java.nio.file.Path tempDir;
+  public java.nio.file.Path tempDir = Paths.get("/tmp");
 
   /**
    * Initializes basePath.
    */
   protected void initPath() {
     try {
-      java.nio.file.Path basePath = tempDir.resolve("dataset");
+      java.nio.file.Path basePath = tempDir.resolve("dataset" + UUID.randomUUID().toString());
       java.nio.file.Files.createDirectories(basePath);
       this.basePath = basePath.toString();
     } catch (IOException ioe) {

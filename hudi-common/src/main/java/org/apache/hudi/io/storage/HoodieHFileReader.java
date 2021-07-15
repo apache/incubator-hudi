@@ -22,6 +22,8 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedList;
@@ -233,6 +235,31 @@ public class HoodieHFileReader<R extends IndexedRecord> implements HoodieFileRea
     }
 
     return Option.empty();
+  }
+  
+  public Map<String, R> getRecordsInRange(String startKey, String endKey) throws IOException {
+    HFileScanner scanner = reader.getScanner(false, true);
+    KeyValue kv = new KeyValue(startKey.getBytes(), null, null, null);
+    if (scanner.seekBefore(kv)) {
+      scanner.next();
+    } else if (!scanner.seekTo()) {
+      return Collections.emptyMap(); 
+    } 
+    
+    Map<String, R> keyToValueMap = new HashMap<>();
+    while (true) {
+      R record = getRecordFromCell(scanner.getKeyValue(), getSchema(), getSchema());
+      String recordKey = record.get(0).toString();
+      if (recordKey.compareTo(endKey) > 0) {
+        return keyToValueMap;
+      }
+      keyToValueMap.put(recordKey, record);
+      if (!scanner.next()) {
+        break;
+      }
+    }
+    
+    return keyToValueMap;
   }
 
   private R getRecordFromCell(Cell c, Schema writerSchema, Schema readerSchema) throws IOException {
