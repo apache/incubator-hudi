@@ -89,7 +89,7 @@ public class StreamWriteFunctionWrapper<I> {
   /**
    * Stream write function.
    */
-  private StreamWriteFunction<Object, HoodieRecord<?>, Object> writeFunction;
+  private StreamWriteFunction<HoodieRecord<?>, Object> writeFunction;
 
   private CompactFunctionWrapper compactFunctionWrapper;
 

@@ -20,6 +20,7 @@ package org.apache.hudi.streamer;
 
 import org.apache.hudi.common.model.HoodieRecord;
 import org.apache.hudi.common.util.Option;
+import org.apache.hudi.common.model.WriteOperationType;
 import org.apache.hudi.configuration.FlinkOptions;
 import org.apache.hudi.sink.CleanFunction;
 import org.apache.hudi.sink.StreamWriteOperatorFactory;
@@ -119,7 +120,7 @@ public class HoodieFlinkStreamer {
           .uid("uid_index_bootstrap_" + conf.getString(FlinkOptions.TABLE_NAME));
     }
 
-    DataStream<Object> pipeline = hoodieDataStream
+    DataStream<HoodieRecord> bucketAssignStream = hoodieDataStream
         // Key-by record key, to avoid multiple subtasks write to a bucket at the same time
         .keyBy(HoodieRecord::getRecordKey)
         .transform(
@@ -127,11 +128,15 @@ public class HoodieFlinkStreamer {
             TypeInformation.of(HoodieRecord.class),
             new BucketAssignOperator<>(new BucketAssignFunction<>(conf)))
         .setParallelism(conf.getInteger(FlinkOptions.BUCKET_ASSIGN_TASKS))
-        .uid("uid_bucket_assigner")
-        // shuffle by fileId(bucket id)
-        .keyBy(record -> record.getCurrentLocation().getFileId())
+        .uid("uid_bucket_assigner");
+
+    // shuffle by fileId(bucket id)
+    if (!WriteOperationType.fromValue(conf.get(FlinkOptions.OPERATION)).equals(WriteOperationType.INSERT)) {
+      bucketAssignStream = bucketAssignStream.keyBy(record -> record.getCurrentLocation().getFileId());
+    }
+
+    DataStream<Object> pipeline = bucketAssignStream
         .transform("hoodie_stream_write", TypeInformation.of(Object.class), operatorFactory)
-        .uid("uid_hoodie_stream_write")
         .setParallelism(conf.getInteger(FlinkOptions.WRITE_TASKS));
     if (StreamerUtil.needsAsyncCompaction(conf)) {
       pipeline.transform("compact_plan_generate",

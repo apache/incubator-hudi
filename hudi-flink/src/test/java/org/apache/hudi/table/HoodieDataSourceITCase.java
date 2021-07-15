@@ -50,6 +50,7 @@ import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.MethodSource;
 
 import java.io.File;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
@@ -60,6 +61,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.apache.hudi.utils.TestData.assertRowsContains;
 import static org.apache.hudi.utils.TestData.assertRowsEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -289,6 +291,68 @@ public class HoodieDataSourceITCase extends AbstractTestBase {
         + "id6,Emma,20,1970-01-01T00:00:06,par3, "
         + "id7,Bob,44,1970-01-01T00:00:07,par4, "
         + "id8,Han,56,1970-01-01T00:00:08,par4]");
+  }
+
+  @ParameterizedTest
+  @EnumSource(value = ExecMode.class)
+  void testWriteAndReadWithInsertMode(ExecMode execMode) throws Exception {
+    boolean streaming = execMode == ExecMode.STREAM;
+    String hoodieTableDDL = "create table t1(\n"
+        + "  uuid varchar(20),\n"
+        + "  name varchar(10),\n"
+        + "  age int,\n"
+        + "  `partition` varchar(20),\n" // test streaming read with partition field in the middle
+        + "  ts timestamp(3),\n"
+        + "  PRIMARY KEY(uuid) NOT ENFORCED\n"
+        + ")\n"
+        + "PARTITIONED BY (`partition`)\n"
+        + "with (\n"
+        + "  'connector' = 'hudi',\n"
+        + "  'write.operation' = 'insert',\n"
+        + "  'path' = '" + tempFile.getAbsolutePath() + "',\n"
+        + "  'read.streaming.enabled' = '" + streaming + "'\n"
+        + ")";
+    streamTableEnv.executeSql(hoodieTableDDL);
+    String insertInto = "insert into t1 values\n"
+        + "('id1','Danny',23,'par1',TIMESTAMP '1970-01-01 00:00:01'),\n"
+        + "('id2','Stephen',33,'par1',TIMESTAMP '1970-01-01 00:00:02'),\n"
+        + "('id3','Julian',53,'par2',TIMESTAMP '1970-01-01 00:00:03'),\n"
+        + "('id4','Fabian',31,'par2',TIMESTAMP '1970-01-01 00:00:04'),\n"
+        + "('id5','Sophia',18,'par3',TIMESTAMP '1970-01-01 00:00:05'),\n"
+        + "('id6','Emma',20,'par3',TIMESTAMP '1970-01-01 00:00:06'),\n"
+        + "('id7','Bob',44,'par4',TIMESTAMP '1970-01-01 00:00:07'),\n"
+        + "('id8','Han',56,'par4',TIMESTAMP '1970-01-01 00:00:08')";
+    execInsertSql(streamTableEnv, insertInto);
+
+    final String expected = "["
+        + "id1,Danny,23,par1,1970-01-01T00:00:01, "
+        + "id2,Stephen,33,par1,1970-01-01T00:00:02, "
+        + "id3,Julian,53,par2,1970-01-01T00:00:03, "
+        + "id4,Fabian,31,par2,1970-01-01T00:00:04, "
+        + "id5,Sophia,18,par3,1970-01-01T00:00:05, "
+        + "id6,Emma,20,par3,1970-01-01T00:00:06, "
+        + "id7,Bob,44,par4,1970-01-01T00:00:07, "
+        + "id8,Han,56,par4,1970-01-01T00:00:08]";
+
+    List<Row> result = execSelectSql(streamTableEnv, "select * from t1", execMode);
+
+    assertRowsEquals(result, expected);
+
+    // insert another batch of data
+    execInsertSql(streamTableEnv, insertInto);
+    List<Row> result2 = execSelectSql(streamTableEnv, "select * from t1", execMode);
+
+    final List<String> contains = new ArrayList<>();
+    contains.add("id1,Danny,23,par1,1970-01-01T00:00:01");
+    contains.add("id2,Stephen,33,par1,1970-01-01T00:00:02");
+    contains.add("id3,Julian,53,par2,1970-01-01T00:00:03");
+    contains.add("id4,Fabian,31,par2,1970-01-01T00:00:04");
+    contains.add("id5,Sophia,18,par3,1970-01-01T00:00:05");
+    contains.add("id6,Emma,20,par3,1970-01-01T00:00:06");
+    contains.add("id7,Bob,44,par4,1970-01-01T00:00:07");
+    contains.add("id8,Han,56,par4,1970-01-01T00:00:08");
+
+    assertRowsContains(result2, contains, 0);
   }
 
   @ParameterizedTest

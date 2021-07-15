@@ -66,6 +66,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static junit.framework.TestCase.assertEquals;
+import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -304,6 +305,22 @@ public class TestData {
         .sorted(Comparator.comparing(o -> toStringSafely(o.getField(0))))
         .collect(Collectors.toList()).toString();
     assertThat(rowsString, is(rowDataToString(expected)));
+  }
+
+  /**
+   * Sort the {@code rows} using field at index {@code orderingPos} and asserts
+   * it equals with the expected string {@code expected}.
+   *
+   * @param rows     Actual result rows
+   * @param contains contains string of the sorted rows
+   * @param orderingPos Field position for ordering
+   */
+  public static void assertRowsContains(List<Row> rows, List<String> contains, int orderingPos) {
+    String rowsString = rows.stream()
+        .sorted(Comparator.comparing(o -> toStringSafely(o.getField(orderingPos))))
+        .collect(Collectors.toList()).toString();
+
+    contains.forEach(s -> assertThat(rowsString, containsString(s)));
   }
 
   /**
