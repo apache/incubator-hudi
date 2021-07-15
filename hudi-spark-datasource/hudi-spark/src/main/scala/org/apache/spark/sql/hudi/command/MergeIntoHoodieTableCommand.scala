@@ -61,14 +61,7 @@ case class MergeIntoHoodieTableCommand(mergeInto: MergeIntoTable) extends Runnab
   /**
     * The target table identify.
     */
-  private lazy val targetTableIdentify: TableIdentifier = {
-    val aliaId = mergeInto.targetTable match {
-      case SubqueryAlias(_, SubqueryAlias(tableId, _)) => tableId
-      case SubqueryAlias(tableId, _) => tableId
-      case plan => throw new IllegalArgumentException(s"Illegal plan $plan in target")
-    }
-    sparkAdapter.toTableIdentify(aliaId)
-  }
+  private lazy val targetTableIdentify: TableIdentifier = getMergeIntoTargetTableId(mergeInto)
 
   /**
    * The target table schema without hoodie meta fields.
@@ -124,7 +117,7 @@ case class MergeIntoHoodieTableCommand(mergeInto: MergeIntoTable) extends Runnab
    */
   private lazy val target2SourcePreCombineFiled: Option[(String, Expression)] = {
     val updateActions = mergeInto.matchedActions.collect { case u: UpdateAction => u }
-    assert(updateActions.size <= 1, s"Only support one updateAction, current is: ${updateActions.size}")
+    assert(updateActions.size <= 1, s"Only support one updateAction currently, current update action count is: ${updateActions.size}")
 
     val updateAction = updateActions.headOption
     HoodieOptionConfig.getPreCombineField(targetTable.storage.properties).map(preCombineField => {
@@ -151,6 +144,7 @@ case class MergeIntoHoodieTableCommand(mergeInto: MergeIntoTable) extends Runnab
 
     // Create the write parameters
     val parameters = buildMergeIntoConfig(mergeInto)
+
     val sourceDF = buildSourceDF(sparkSession)
 
     if (mergeInto.matchedActions.nonEmpty) { // Do the upsert

@@ -32,7 +32,7 @@ import org.apache.spark.sql.hudi.SparkAdapter
 import org.apache.spark.sql.internal.SQLConf
 
 /**
- * A sql adapter for spark3.
+ * The adapter for spark3.
  */
 class Spark3Adapter extends SparkAdapter {
 

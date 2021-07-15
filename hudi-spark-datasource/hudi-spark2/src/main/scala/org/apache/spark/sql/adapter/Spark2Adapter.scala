@@ -33,7 +33,7 @@ import org.apache.spark.sql.hudi.parser.HoodieSqlParser
 import org.apache.spark.sql.internal.SQLConf
 
 /**
- * A sql adapter for spark2.
+ * The adapter for spark2.
  */
 class Spark2Adapter extends SparkAdapter {
 

@@ -17,10 +17,11 @@
 
 package org.apache.spark.sql.hudi.analysis
 
+import org.apache.hudi.DataSourceWriteOptions.MOR_TABLE_TYPE_OPT_VAL
 import org.apache.hudi.SparkAdapterSupport
 
 import scala.collection.JavaConverters._
-import org.apache.hudi.common.model.HoodieRecord
+import org.apache.hudi.common.model.{HoodieRecord, HoodieTableType}
 import org.apache.spark.sql.{AnalysisException, SparkSession}
 import org.apache.spark.sql.catalyst.analysis.UnresolvedStar
 import org.apache.spark.sql.catalyst.expressions.AttributeReference
@@ -31,7 +32,7 @@ import org.apache.spark.sql.catalyst.plans.logical.{Assignment, DeleteAction, De
 import org.apache.spark.sql.catalyst.rules.Rule
 import org.apache.spark.sql.execution.command.{AlterTableAddColumnsCommand, AlterTableChangeColumnCommand, AlterTableRenameCommand, CreateDataSourceTableCommand, TruncateTableCommand}
 import org.apache.spark.sql.execution.datasources.{CreateTable, LogicalRelation}
-import org.apache.spark.sql.hudi.HoodieSqlUtils
+import org.apache.spark.sql.hudi.{HoodieOptionConfig, HoodieSqlUtils}
 import org.apache.spark.sql.hudi.HoodieSqlUtils._
 import org.apache.spark.sql.hudi.command.{AlterHoodieTableAddColumnsCommand, AlterHoodieTableChangeColumnCommand, AlterHoodieTableRenameCommand, CreateHoodieTableAsSelectCommand, CreateHoodieTableCommand, DeleteHoodieTableCommand, InsertIntoHoodieTableCommand, MergeIntoHoodieTableCommand, TruncateHoodieTableCommand, UpdateHoodieTableCommand}
 import org.apache.spark.sql.types.StringType
@@ -102,7 +103,7 @@ case class HoodieResolveReferences(sparkSession: SparkSession) extends Rule[Logi
 
   def apply(plan: LogicalPlan): LogicalPlan = plan resolveOperatorsUp  {
     // Resolve merge into
-    case MergeIntoTable(target, source, mergeCondition, matchedActions, notMatchedActions)
+    case mergeInto @ MergeIntoTable(target, source, mergeCondition, matchedActions, notMatchedActions)
       if isHoodieTable(target, sparkSession) && target.resolved =>
 
       val resolvedSource = analyzer.execute(source)
@@ -164,7 +165,47 @@ case class HoodieResolveReferences(sparkSession: SparkSession) extends Rule[Logi
         case UpdateAction(condition, assignments) =>
           val (resolvedCondition, resolvedAssignments) =
             resolveConditionAssignments(condition, assignments)
-          UpdateAction(resolvedCondition, resolvedAssignments)
+
+          // Get the target table type and pre-combine field.
+          val targetTableId = getMergeIntoTargetTableId(mergeInto)
+          val targetTable =
+            sparkSession.sessionState.catalog.getTableMetadata(targetTableId)
+          val targetTableType = HoodieOptionConfig.getTableType(targetTable.storage.properties)
+          val preCombineField = HoodieOptionConfig.getPreCombineField(targetTable.storage.properties)
+
+          // Get the map of target attribute to value of the update assignments.
+          val target2Values = resolvedAssignments.map {
+              case Assignment(attr: AttributeReference, value) =>
+                attr.name -> value
+              case o => throw new IllegalArgumentException(s"Assignment key must be an attribute, current is: ${o.key}")
+          }.toMap
+
+          // Validate if there are incorrect target attributes.
+          val unKnowTargets = target2Values.keys
+            .filterNot(removeMetaFields(target.output).map(_.name).contains(_))
+          if (unKnowTargets.nonEmpty) {
+            throw new AnalysisException(s"Cannot find target attributes: ${unKnowTargets.mkString(",")}.")
+          }
+
+          // Fill the missing target attribute in the update action for COW table to support partial update.
+          // e.g. If the update action missing 'id' attribute, we fill a "id = target.id" to the update action.
+          val newAssignments = removeMetaFields(target.output)
+            .map(attr => {
+              // TODO support partial update for MOR.
+              if (!target2Values.contains(attr.name) && targetTableType == MOR_TABLE_TYPE_OPT_VAL) {
+                throw new AnalysisException(s"Missing specify the value for target field: '${attr.name}' in merge into update action" +
+                  s" for MOR table. Currently we cannot support partial update for MOR," +
+                  s" please complete all the target fields just like '...update set id = s0.id, name = s0.name ....'")
+              }
+              if (preCombineField.isDefined && preCombineField.get.equalsIgnoreCase(attr.name)
+                  && !target2Values.contains(attr.name)) {
+                throw new AnalysisException(s"Missing specify value for the preCombineField:" +
+                  s" ${preCombineField.get} in merge-into update action. You should add" +
+                  s" '... update set ${preCombineField.get} = xx....' to the when-matched clause.")
+              }
+              Assignment(attr, target2Values.getOrElse(attr.name, attr))
+            })
+          UpdateAction(resolvedCondition, newAssignments)
         case DeleteAction(condition) =>
           val resolvedCondition = condition.map(resolveExpressionFrom(resolvedSource)(_))
           DeleteAction(resolvedCondition)
