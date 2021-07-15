@@ -126,7 +126,7 @@ public class HoodieBackedTableMetadata extends BaseTableMetadata {
         Option<GenericRecord> baseRecord = baseFileReader.getRecordByKey(key);
         if (baseRecord.isPresent()) {
           hoodieRecord = SpillableMapUtils.convertToHoodieRecordPayload(baseRecord.get(),
-              metaClient.getTableConfig().getPayloadClass());
+              metaClient.getTableConfig().getPayloadClass(), metaClient.getTableConfig().getPreCombineField());
           metrics.ifPresent(m -> m.updateMetrics(HoodieMetadataMetrics.BASEFILE_READ_STR, readTimer.endTimer()));
         }
       }

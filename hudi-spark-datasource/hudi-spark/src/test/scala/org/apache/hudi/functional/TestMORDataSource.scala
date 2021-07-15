@@ -513,22 +513,39 @@ class TestMORDataSource extends HoodieClientTestBase {
 
   @Test
   def testPreCombineFiledForReadMOR(): Unit = {
-    writeData((1, "a0",10, 100))
-    checkAnswer((1, "a0",10, 100))
+    writeData((1, "a0",10, 100, false))
+    checkAnswer((1, "a0",10, 100, false))
 
-    writeData((1, "a0", 12, 99))
+    writeData((1, "a0", 12, 99, false))
     // The value has not update, because the version 99 < 100
-    checkAnswer((1, "a0",10, 100))
+    checkAnswer((1, "a0",10, 100, false))
 
-    writeData((1, "a0", 12, 101))
+    writeData((1, "a0", 12, 101, false))
     // The value has update
-    checkAnswer((1, "a0", 12, 101))
+    checkAnswer((1, "a0", 12, 101, false))
+
+    writeData((1, "a0", 14, 98, false))
+    // Latest value should be ignored if preCombine honors ordering
+    checkAnswer((1, "a0", 12, 101, false))
+
+    writeData((1, "a0", 16, 97, true))
+    // Ordering value will not be honored for a delete record as the payload is sent as empty payload
+    checkAnswer((1, "a0", 16, 97, true))
+
+    writeData((1, "a0", 18, 96, false))
+    // Ideally, once a record is deleted, preCombine does not kick. So, any new record will be considered valid ignoring
+    // ordering val. But what happens ini hudi is, all records in log files are reconciled and then merged with base
+    // file. After reconciling all records from log files, it results in (1, "a0", 18, 96, false) and ths is merged with
+    // (1, "a0", 10, 100, false) in base file and hence we see (1, "a0", 10, 100, false) as it has higher preComine value.
+    // the result might differ depending on whether compaction was triggered or not(after record is deleted). In this
+    // test, no compaction is triggered and hence we see the record from base file.
+    checkAnswer((1, "a0", 10, 100, false))
   }
 
-  private def writeData(data: (Int, String, Int, Int)): Unit = {
+  private def writeData(data: (Int, String, Int, Int, Boolean)): Unit = {
     val _spark = spark
     import _spark.implicits._
-    val df = Seq(data).toDF("id", "name", "value", "version")
+    val df = Seq(data).toDF("id", "name", "value", "version","_hoodie_is_deleted")
     df.write.format("org.apache.hudi")
       .options(commonOpts)
       // use DefaultHoodieRecordPayload here
@@ -542,11 +559,18 @@ class TestMORDataSource extends HoodieClientTestBase {
       .save(basePath)
   }
 
-  private def checkAnswer(expect: (Int, String, Int, Int)): Unit = {
+  private def checkAnswer(expect: (Int, String, Int, Int, Boolean)): Unit = {
     val readDf = spark.read.format("org.apache.hudi")
       .load(basePath + "/*")
-    val row1 = readDf.select("id", "name", "value", "version").take(1)(0)
-    assertEquals(Row(expect.productIterator.toSeq: _*), row1)
+    if (expect._5) {
+      if(!readDf.isEmpty) {
+        println("Found df " + readDf.collectAsList().get(0).mkString(","))
+      }
+      assertTrue(readDf.isEmpty)
+    } else {
+      val row1 = readDf.select("id", "name", "value", "version", "_hoodie_is_deleted").take(1)(0)
+      assertEquals(Row(expect.productIterator.toSeq: _*), row1)
+    }
   }
 
   def verifySchemaAndTypes(df: DataFrame): Unit = {

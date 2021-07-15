@@ -209,7 +209,7 @@ public class SparkExecuteClusteringCommitActionExecutor<T extends HoodieRecordPa
               .build();
 
           recordIterators.add(HoodieFileSliceReader.getFileSliceReader(baseFileReader, scanner, readerSchema,
-              table.getMetaClient().getTableConfig().getPayloadClass()));
+              table.getMetaClient().getTableConfig().getPayloadClass(), table.getMetaClient().getTableConfig().getPreCombineField()));
         } catch (IOException e) {
           throw new HoodieClusteringException("Error reading input data for " + clusteringOp.getDataFilePath()
               + " and " + clusteringOp.getDeltaFilePaths(), e);

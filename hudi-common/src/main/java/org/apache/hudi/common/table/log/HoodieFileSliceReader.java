@@ -36,11 +36,11 @@ public class HoodieFileSliceReader implements Iterator<HoodieRecord<? extends Ho
   private Iterator<HoodieRecord<? extends HoodieRecordPayload>> recordsIterator;
 
   public static <R extends IndexedRecord, T extends HoodieRecordPayload> HoodieFileSliceReader getFileSliceReader(
-      HoodieFileReader<R> baseFileReader, HoodieMergedLogRecordScanner scanner, Schema schema, String payloadClass) throws IOException {
+      HoodieFileReader<R> baseFileReader, HoodieMergedLogRecordScanner scanner, Schema schema, String payloadClass, String preCombineField) throws IOException {
     Iterator<R> baseIterator = baseFileReader.getRecordIterator(schema);
     while (baseIterator.hasNext()) {
       GenericRecord record = (GenericRecord)  baseIterator.next();
-      HoodieRecord<T> hoodieRecord = SpillableMapUtils.convertToHoodieRecordPayload(record, payloadClass);
+      HoodieRecord<T> hoodieRecord = SpillableMapUtils.convertToHoodieRecordPayload(record, payloadClass, preCombineField);
       scanner.processNextRecord(hoodieRecord);
     }
     return new HoodieFileSliceReader(scanner.iterator());

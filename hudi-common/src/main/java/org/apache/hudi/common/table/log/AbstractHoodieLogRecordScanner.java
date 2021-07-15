@@ -80,6 +80,8 @@ public abstract class AbstractHoodieLogRecordScanner {
   private final HoodieTableMetaClient hoodieTableMetaClient;
   // Merge strategy to use when combining records from log
   private final String payloadClassFQN;
+  // PreCombine field name
+  private final String preCombineField;
   // Log File Paths
   protected final List<String> logFilePaths;
   // Read Lazily flag
@@ -115,6 +117,7 @@ public abstract class AbstractHoodieLogRecordScanner {
     this.hoodieTableMetaClient = HoodieTableMetaClient.builder().setConf(fs.getConf()).setBasePath(basePath).build();
     // load class from the payload fully qualified class name
     this.payloadClassFQN = this.hoodieTableMetaClient.getTableConfig().getPayloadClass();
+    this.preCombineField = this.hoodieTableMetaClient.getTableConfig().getPreCombineField();
     this.totalLogFiles.addAndGet(logFilePaths.size());
     this.logFilePaths = logFilePaths;
     this.readBlocksLazily = readBlocksLazily;
@@ -302,7 +305,7 @@ public abstract class AbstractHoodieLogRecordScanner {
   }
 
   protected HoodieRecord<?> createHoodieRecord(IndexedRecord rec) {
-    return SpillableMapUtils.convertToHoodieRecordPayload((GenericRecord) rec, this.payloadClassFQN);
+    return SpillableMapUtils.convertToHoodieRecordPayload((GenericRecord) rec, this.payloadClassFQN, this.preCombineField);
   }
 
   /**
