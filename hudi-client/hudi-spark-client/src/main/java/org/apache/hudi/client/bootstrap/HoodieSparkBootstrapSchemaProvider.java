@@ -34,6 +34,15 @@ import org.apache.spark.sql.execution.datasources.parquet.ParquetToSparkSchemaCo
 import org.apache.spark.sql.internal.SQLConf;
 import org.apache.spark.sql.types.StructType;
 
+import org.apache.orc.OrcFile;
+import org.apache.orc.Reader;
+import org.apache.orc.TypeDescription;
+import org.apache.hudi.common.util.AvroOrcUtils;
+import org.apache.hudi.common.fs.FSUtils;
+import static org.apache.hudi.common.model.HoodieFileFormat.ORC;
+import static org.apache.hudi.common.model.HoodieFileFormat.PARQUET;
+
+import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
@@ -44,20 +53,27 @@ public class HoodieSparkBootstrapSchemaProvider extends HoodieBootstrapSchemaPro
 
   @Override
   protected Schema getBootstrapSourceSchema(HoodieEngineContext context, List<Pair<String, List<HoodieFileStatus>>> partitions) {
-    MessageType parquetSchema = partitions.stream().flatMap(p -> p.getValue().stream()).map(fs -> {
-      try {
-        Path filePath = FileStatusUtils.toPath(fs.getPath());
-        return new ParquetUtils().readSchema(context.getHadoopConf().get(), filePath);
-      } catch (Exception ex) {
-        return null;
-      }
+    Path filePath = partitions.stream().flatMap(p -> p.getValue().stream()).map(fs -> {
+      return   FileStatusUtils.toPath(fs.getPath());
     }).filter(Objects::nonNull).findAny()
-        .orElseThrow(() -> new HoodieException("Could not determine schema from the data files."));
+            .orElseThrow(() -> new HoodieException("Could not determine schema from the data files."));
+    String fileExtension = FSUtils.getFileExtension(filePath.getName());
+    if (fileExtension.equals(PARQUET.getFileExtension())) {
+      return getBootstrapSourceSchemaParquet(context,filePath);
+    } else  if (fileExtension.equals(ORC.getFileExtension())) {
+      return getBootstrapSourceSchemaOrc(context,filePath);
+    } else {
+      throw new HoodieException("Could not determine schema from the data files.");
+    }
 
+  }
+
+  private Schema getBootstrapSourceSchemaParquet(HoodieEngineContext context, Path filePath) {
+    MessageType parquetSchema = new ParquetUtils().readSchema(context.getHadoopConf().get(), filePath);
 
     ParquetToSparkSchemaConverter converter = new ParquetToSparkSchemaConverter(
-        Boolean.parseBoolean(SQLConf.PARQUET_BINARY_AS_STRING().defaultValueString()),
-        Boolean.parseBoolean(SQLConf.PARQUET_INT96_AS_TIMESTAMP().defaultValueString()));
+            Boolean.parseBoolean(SQLConf.PARQUET_BINARY_AS_STRING().defaultValueString()),
+            Boolean.parseBoolean(SQLConf.PARQUET_INT96_AS_TIMESTAMP().defaultValueString()));
     StructType sparkSchema = converter.convert(parquetSchema);
     String tableName = HoodieAvroUtils.sanitizeName(writeConfig.getTableName());
     String structName = tableName + "_record";
@@ -65,4 +81,20 @@ public class HoodieSparkBootstrapSchemaProvider extends HoodieBootstrapSchemaPro
 
     return AvroConversionUtils.convertStructTypeToAvroSchema(sparkSchema, structName, recordNamespace);
   }
+
+  private Schema getBootstrapSourceSchemaOrc(HoodieEngineContext context, Path filePath) {
+    Reader orcReader = null;
+    try {
+      orcReader = OrcFile.createReader(filePath, OrcFile.readerOptions(context.getHadoopConf().get()));
+    } catch (IOException e) {
+      throw new HoodieException("Could not determine schema from the data files.");
+    }
+    TypeDescription orcSchema = orcReader.getSchema();
+    String tableName = HoodieAvroUtils.sanitizeName(writeConfig.getTableName());
+    String structName = tableName + "_record";
+    String recordNamespace = "hoodie." + tableName;
+
+    return AvroOrcUtils.createAvroSchemaWithDefaultValue(orcSchema,structName, recordNamespace,true);
+  }
+
 }

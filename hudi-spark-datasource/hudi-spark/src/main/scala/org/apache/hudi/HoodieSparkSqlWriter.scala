@@ -306,6 +306,7 @@ object HoodieSparkSqlWriter {
           .setPreCombineField(hoodieConfig.getStringOrDefault(PRECOMBINE_FIELD_OPT_KEY, null))
           .setBootstrapIndexClass(bootstrapIndexClass)
           .setBootstrapBasePath(bootstrapBasePath)
+          .setBaseFileFormat(hoodieConfig.getStringOrDefault(HOODIE_BASE_FILE_FORMAT_PROP))
           .setPartitionColumns(partitionColumns)
           .initTable(sparkContext.hadoopConfiguration, path)
     }

@@ -24,6 +24,7 @@ import org.apache.hudi.client.bootstrap.translator.IdentityBootstrapPartitionPat
 import org.apache.hudi.common.bootstrap.index.HFileBootstrapIndex;
 import org.apache.hudi.common.config.ConfigProperty;
 import org.apache.hudi.common.config.HoodieConfig;
+import org.apache.hudi.common.model.HoodieFileFormat;
 import org.apache.hudi.common.table.HoodieTableConfig;
 import org.apache.hudi.keygen.constant.KeyGeneratorType;
 
@@ -99,6 +100,12 @@ public class HoodieBootstrapConfig extends HoodieConfig {
       .sinceVersion("0.6.0")
       .withDocumentation("Implementation to use, for mapping a skeleton base file to a boostrap base file.");
 
+  public static final ConfigProperty<HoodieFileFormat> HOODIE_BASE_FILE_FORMAT_PROP = ConfigProperty
+          .key("hoodie.table.base.file.format")
+          .defaultValue(HoodieFileFormat.PARQUET)
+          .withAlternatives("hoodie.table.ro.file.format")
+          .withDocumentation("");
+
   private HoodieBootstrapConfig() {
     super();
   }
@@ -161,6 +168,11 @@ public class HoodieBootstrapConfig extends HoodieConfig {
 
     public Builder withBootstrapModeForRegexMatch(BootstrapMode modeForRegexMatch) {
       bootstrapConfig.setValue(BOOTSTRAP_MODE_SELECTOR_REGEX_MODE, modeForRegexMatch.name());
+      return this;
+    }
+
+    public Builder withBaseFileFormat(HoodieFileFormat fileFormat) {
+      bootstrapConfig.setDefaultValue(HOODIE_BASE_FILE_FORMAT_PROP, fileFormat);
       return this;
     }
 

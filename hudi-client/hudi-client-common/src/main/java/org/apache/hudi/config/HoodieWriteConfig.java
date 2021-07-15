@@ -30,6 +30,7 @@ import org.apache.hudi.common.model.HoodieCleaningPolicy;
 import org.apache.hudi.common.model.HoodieFailedWritesCleaningPolicy;
 import org.apache.hudi.common.model.OverwriteWithLatestAvroPayload;
 import org.apache.hudi.common.model.WriteConcurrencyMode;
+import org.apache.hudi.common.model.HoodieFileFormat;
 import org.apache.hudi.common.table.timeline.versioning.TimelineLayoutVersion;
 import org.apache.hudi.common.table.view.FileSystemViewStorageConfig;
 import org.apache.hudi.common.util.ReflectionUtils;
@@ -333,6 +334,13 @@ public class HoodieWriteConfig extends HoodieConfig {
       .defaultValue("")
       .withDocumentation("Comma separated metadata key prefixes to override from latest commit "
           + "during overlapping commits via multi writing");
+
+  public static final ConfigProperty<HoodieFileFormat> HOODIE_BASE_FILE_FORMAT_PROP = ConfigProperty
+          .key("hoodie.table.base.file.format")
+          .defaultValue(HoodieFileFormat.PARQUET)
+          .withAlternatives("hoodie.table.ro.file.format")
+          .withDocumentation("");
+
 
   /**
    * Currently the  use this to specify the write schema.
@@ -1263,6 +1271,10 @@ public class HoodieWriteConfig extends HoodieConfig {
     return WriteConcurrencyMode.fromValue(getString(WRITE_CONCURRENCY_MODE_PROP));
   }
 
+  public HoodieFileFormat getBaseFileFormat() {
+    return HOODIE_BASE_FILE_FORMAT_PROP.defaultValue();
+  }
+  
   public Boolean inlineTableServices() {
     return inlineClusteringEnabled() || inlineCompactionEnabled() || isAutoClean();
   }
@@ -1572,6 +1584,11 @@ public class HoodieWriteConfig extends HoodieConfig {
 
     public Builder withWriteMetaKeyPrefixes(String writeMetaKeyPrefixes) {
       writeConfig.setValue(WRITE_META_KEY_PREFIXES_PROP, writeMetaKeyPrefixes);
+      return this;
+    }
+
+    public Builder withBaseFileFormat(HoodieFileFormat fileFormat) {
+      writeConfig.setDefaultValue(HOODIE_BASE_FILE_FORMAT_PROP, fileFormat);
       return this;
     }
 

@@ -650,11 +650,6 @@ public class HoodieTableMetaClient implements Serializable {
       return this;
     }
 
-    public PropertyBuilder setBaseFileFormat(String baseFileFormat) {
-      this.baseFileFormat = baseFileFormat;
-      return this;
-    }
-
     public PropertyBuilder setPreCombineField(String preCombineField) {
       this.preCombineField = preCombineField;
       return this;
@@ -672,6 +667,11 @@ public class HoodieTableMetaClient implements Serializable {
 
     public PropertyBuilder setBootstrapBasePath(String bootstrapBasePath) {
       this.bootstrapBasePath = bootstrapBasePath;
+      return this;
+    }
+
+    public PropertyBuilder setBaseFileFormat(String baseFileFormat) {
+      this.baseFileFormat = baseFileFormat;
       return this;
     }
 
@@ -725,6 +725,7 @@ public class HoodieTableMetaClient implements Serializable {
       if (hoodieConfig.contains(HoodieTableConfig.HOODIE_TABLE_CREATE_SCHEMA)) {
         setTableCreateSchema(hoodieConfig.getString(HoodieTableConfig.HOODIE_TABLE_CREATE_SCHEMA));
       }
+
       return this;
     }
 
